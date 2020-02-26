@@ -2,10 +2,10 @@ package client
 
 import (
 	"errors"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -13,11 +13,15 @@ type InfluxDBClient struct {
 	serverUrl     string
 	authorization string
 	client        *http.Client
+	Debug         int
 }
 
 type RequestCallback func(req *http.Request)
 type ResponseCallback func(req *http.Response) error
 
+func NewInfluxDBClientEmpty(serverUrl string) *InfluxDBClient {
+	return NewInfluxDBClient(serverUrl, "")
+}
 func NewInfluxDBClient(serverUrl string, authToken string) *InfluxDBClient {
 	client := &InfluxDBClient{
 		serverUrl:     serverUrl,
@@ -48,23 +52,23 @@ func (c InfluxDBClient) Ready() (bool, error) {
 	return resp.StatusCode == http.StatusOK, nil
 }
 
-func (c *InfluxDBClient) WriteAPI(org, bucket string) *WriteApi {
-	return &WriteApi{
+func (c *InfluxDBClient) WriteAPI(org, bucket string) WriteApi {
+	return &WriteApiImpl{
 		org:    org,
 		bucket: bucket,
 		client: c,
 	}
 }
 
-func (c *InfluxDBClient) QueryAPI(org string) *QueryApi {
-	return &QueryApi{
+func (c *InfluxDBClient) QueryAPI(org string) QueryApi {
+	return &QueryApiImpl{
 		org:    org,
 		client: c,
 	}
 }
 
-func (c *InfluxDBClient) postRequest(url, body string, expectedStatusCode int, requestCallback RequestCallback, responseCallback ResponseCallback) error {
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+func (c *InfluxDBClient) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) error {
+	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
 		return err
 	}
@@ -77,8 +81,9 @@ func (c *InfluxDBClient) postRequest(url, body string, expectedStatusCode int, r
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != expectedStatusCode {
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		//TODO: read json
 		respBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return err
