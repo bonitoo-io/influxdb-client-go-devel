@@ -1,1 +1,3 @@
-# influxdb-client-go
+#InfluxDB Client GO
+
+Work in progress
