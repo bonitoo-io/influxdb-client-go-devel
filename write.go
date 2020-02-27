@@ -61,6 +61,9 @@ func buffer(lines []string) *strings.Builder {
 func (w *writeApiImpl) Flush() error {
 	if len(w.writeBuffer) > 0 {
 		batch := &batch{batch: buffer(w.writeBuffer).String()}
+		if w.client.options.Debug > 1 {
+			log.Println("I! Writing batch")
+		}
 		w.writeCh <- batch
 		w.writeBuffer = w.writeBuffer[:0]
 	}
@@ -146,6 +149,9 @@ func (w *writeApiImpl) write(batch *batch) error {
 func (w *writeApiImpl) WriteRecord(line string) {
 	w.writeBuffer = append(w.writeBuffer, line)
 	if len(w.writeBuffer) == w.client.options.BatchSize {
+		if w.client.options.Debug > 1 {
+			log.Println("I! Writing batch")
+		}
 		batch := &batch{batch: buffer(w.writeBuffer).String()}
 		w.writeCh <- batch
 		w.writeBuffer = w.writeBuffer[:0]
