@@ -9,11 +9,26 @@ import (
 	"time"
 )
 
+type Options struct {
+	BatchSize  int
+	MaxRetries int
+	// 0 error, 1 - warning, 2 - info, 3 - debug
+	Debug int
+	// Retry interval in sec
+	RetryInterval int
+}
+
+// TODO: singleton?
+func DefaultOptions() *Options {
+	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60}
+}
+
 type InfluxDBClient struct {
 	serverUrl     string
 	authorization string
 	client        *http.Client
-	Debug         int
+	options       Options
+	writeApis     []WriteApi
 }
 
 type RequestCallback func(req *http.Request)
@@ -22,7 +37,12 @@ type ResponseCallback func(req *http.Response) error
 func NewInfluxDBClientEmpty(serverUrl string) *InfluxDBClient {
 	return NewInfluxDBClient(serverUrl, "")
 }
+
 func NewInfluxDBClient(serverUrl string, authToken string) *InfluxDBClient {
+	return NewInfluxDBClientWithOptions(serverUrl, authToken, *DefaultOptions())
+}
+
+func NewInfluxDBClientWithOptions(serverUrl string, authToken string, options Options) *InfluxDBClient {
 	client := &InfluxDBClient{
 		serverUrl:     serverUrl,
 		authorization: "Token " + authToken,
@@ -35,6 +55,8 @@ func NewInfluxDBClient(serverUrl string, authToken string) *InfluxDBClient {
 				TLSHandshakeTimeout: 30 * time.Second,
 			},
 		},
+		options:   options,
+		writeApis: make([]WriteApi, 0, 5),
 	}
 	return client
 }
@@ -53,10 +75,13 @@ func (c InfluxDBClient) Ready() (bool, error) {
 }
 
 func (c *InfluxDBClient) WriteAPI(org, bucket string) WriteApi {
-	return &WriteApiImpl{
-		org:    org,
-		bucket: bucket,
-		client: c,
+	w := newWriteApiImpl(org, bucket, c)
+	c.writeApis = append(c.writeApis, w)
+	return w
+}
+func (c *InfluxDBClient) Close() {
+	for _, w := range c.writeApis {
+		w.close()
 	}
 }
 
