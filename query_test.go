@@ -382,7 +382,6 @@ func TestQueryRawResultMultiTables(t *testing.T) {
 	reader := strings.NewReader(csvTable)
 	queryResult := &QueryRawResult{Closer: ioutil.NopCloser(reader), scanner: bufio.NewScanner(reader)}
 	for i, row := range csvRows {
-		fmt.Printf("%d:%s\n", i, queryResult.Row())
 		require.True(t, queryResult.Next(), i)
 		require.Nil(t, queryResult.Err(), i)
 		assert.Equal(t, queryResult.Row(), row, i)
