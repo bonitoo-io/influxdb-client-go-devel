@@ -93,31 +93,31 @@ func newFluxRecord(table int, values map[string]interface{}) *FluxRecord {
 
 // Start returns the inclusive lower time bound of all records in the current tableIndex
 func (r *FluxRecord) Start() time.Time {
-	return r.values["_start"].(time.Time)
+	return r.ValueByKey("_start").(time.Time)
 }
 
 // Stop returns the exclusive upper time bound of all records in the current tableIndex
 func (r *FluxRecord) Stop() time.Time {
-	return r.values["_stop"].(time.Time)
+	return r.ValueByKey("_stop").(time.Time)
 }
 
 // Start returns the inclusive lower time bound of all records in the current tableIndex
 func (r *FluxRecord) Time() time.Time {
-	return r.values["_time"].(time.Time)
+	return r.ValueByKey("_time").(time.Time)
 }
 
 // Value returns the actual field value
 func (r *FluxRecord) Value() interface{} {
-	return r.values["_value"]
+	return r.ValueByKey("_value")
 }
 
 // Stop returns the exclusive upper time bound of all records in the current tableIndex
 func (r *FluxRecord) Field() string {
-	return r.values["_field"].(string)
+	return r.ValueByKey("_field").(string)
 }
 
 func (r *FluxRecord) Measurement() string {
-	return r.values["_measurement"].(string)
+	return r.ValueByKey("_measurement").(string)
 }
 
 func (r *FluxRecord) Values() map[string]interface{} {
