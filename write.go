@@ -54,9 +54,6 @@ func (w *writeApiImpl) Flush() error {
 	if len(w.writeBuffer) > 0 {
 		batch := &batch{batch: strings.Join(w.writeBuffer, "\n")}
 		w.writeCh <- batch
-		if w.client.options.Debug > 2 {
-			log.Printf("D! Writing batch: %s", batch.batch)
-		}
 		w.writeBuffer = w.writeBuffer[:0]
 	}
 	return nil
@@ -120,6 +117,9 @@ func (w *writeApiImpl) write(batch *batch) error {
 	if err != nil {
 		log.Printf("E! %s\n", err.Error())
 		return err
+	}
+	if w.client.options.Debug > 2 {
+		log.Printf("D! Writing batch: %s", batch.batch)
 	}
 	err = w.client.postRequest(url, strings.NewReader(batch.batch), nil, nil)
 	if err != nil {
