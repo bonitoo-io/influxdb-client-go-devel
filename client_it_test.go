@@ -20,7 +20,7 @@ var authToken string
 
 func TestSetup(t *testing.T) {
 	client := NewInfluxDBClientEmpty("http://localhost:9999")
-	client.Debug = 3
+	client.options.Debug = 2
 	response, err := client.Setup("my-user", "my-password", "my-org", "my-bucket")
 	if err != nil {
 		t.Error(err)
@@ -33,26 +33,26 @@ func TestSetup(t *testing.T) {
 }
 func TestWrite(t *testing.T) {
 	client := NewInfluxDBClient("http://localhost:9999", token())
-
+	client.options.Debug = 3
 	writeApi := client.WriteAPI("my-org", "my-bucket")
 	for i, f := 0, 3.3; i < 10; i++ {
-		err := writeApi.WriteRecord(fmt.Sprintf("test,a=%d,b=adsfasdf f=%.2f,i=%di", i%2, f, i))
-		if err != nil {
-			t.Error(err)
-		}
+		writeApi.WriteRecord(fmt.Sprintf("test,a=%d,b=adsfasdf f=%.2f,i=%di", i%2, f, i))
+		//writeApi.Flush()
 		f += 3.3
 	}
+	client.Close()
+
 }
 
 func TestQueryString(t *testing.T) {
 	client := NewInfluxDBClient("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
-	res, err := queryApi.QueryString(`from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")`)
+	res, err := queryApi.QueryString(`from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`)
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println("QueryResult")
+	fmt.Println("QueryResult:")
 	fmt.Println(res)
 }
 
@@ -99,6 +99,7 @@ func TestQuery(t *testing.T) {
 		}
 	}
 }
+
 func token() string {
 	if authToken == "" {
 		authToken = "R2UzN71P5xWaEmBf_MLBntKMUGu29-UP-jiw7kTuEHmJRfUyk8HGzQtvrwTVaY_k_qKsHSW9zHk5bpTPK9TpTg=="
