@@ -52,7 +52,11 @@ func newWriteApiImpl(org string, bucket string, client *InfluxDBClient) *writeAp
 
 func (w *writeApiImpl) Flush() error {
 	if len(w.writeBuffer) > 0 {
-		w.writeCh <- &batch{strings.Join(w.writeBuffer, "\n"), 0}
+		batch := &batch{batch: strings.Join(w.writeBuffer, "\n")}
+		w.writeCh <- batch
+		if w.client.options.Debug > 2 {
+			log.Printf("D! Writing batch: %s", batch.batch)
+		}
 		w.writeBuffer = w.writeBuffer[:0]
 	}
 	return nil
@@ -122,6 +126,7 @@ func (w *writeApiImpl) write(batch *batch) error {
 		if w.client.options.Debug > 0 {
 			log.Printf("W! Write error: %s\nBatch kept for retrying\n", err.Error())
 		}
+		//
 		if batch.retries < w.client.options.MaxRetries {
 			w.retryBuffer = append(w.retryBuffer, batch)
 		}
