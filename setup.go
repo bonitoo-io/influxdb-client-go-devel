@@ -27,8 +27,8 @@ func (c *InfluxDBClient) Setup(username, password, org, bucket string) (*SetupRe
 	if err != nil {
 		return nil, err
 	}
-	if c.Debug > 1 {
-		log.Printf("Request:\n%s\n", string(inputData))
+	if c.options.Debug > 2 {
+		log.Printf("D! Request:\n%s\n", string(inputData))
 	}
 	err = c.postRequest(c.serverUrl+"/api/v2/setup", bytes.NewReader(inputData), func(req *http.Request) {
 		req.Header.Add("Content-Type", "application/json; charset=utf-8")
@@ -36,9 +36,9 @@ func (c *InfluxDBClient) Setup(username, password, org, bucket string) (*SetupRe
 		func(resp *http.Response) error {
 			defer resp.Body.Close()
 			setupResponse := &SetupResponse{}
-			if c.Debug > 2 {
+			if c.options.Debug > 2 {
 				body, _ := ioutil.ReadAll(resp.Body)
-				log.Printf("Response:\n%s\n", string(body))
+				log.Printf("D! Response:\n%s\n", string(body))
 				if err := json.NewDecoder(bytes.NewReader(body)).Decode(setupResponse); err != nil {
 					return err
 				}
