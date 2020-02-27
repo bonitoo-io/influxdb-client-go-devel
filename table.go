@@ -123,3 +123,7 @@ func (r *FluxRecord) Measurement() string {
 func (r *FluxRecord) Values() map[string]interface{} {
 	return r.values
 }
+
+func (r *FluxRecord) ValueByKey(key string) interface{} {
+	return r.values[key]
+}
