@@ -55,6 +55,7 @@ func NewInfluxDBClientWithOptions(serverUrl string, authToken string, options Op
 					Timeout: 30 * time.Second,
 				}).DialContext,
 				TLSHandshakeTimeout: 30 * time.Second,
+				WriteBufferSize:     500 * 1024,
 			},
 		},
 		options:   options,
