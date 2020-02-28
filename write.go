@@ -4,15 +4,19 @@ package client
 // - flush proc
 // - retry on error
 import (
+	"bytes"
 	"log"
 	"net/url"
 	"path"
 	"strings"
 	"time"
+
+	lp "github.com/influxdata/line-protocol"
 )
 
 type WriteApi interface {
 	WriteRecord(line string)
+	Write(point *Point)
 	Flush()
 	close()
 }
@@ -57,7 +61,7 @@ func newWriteApiImpl(org string, bucket string, client *InfluxDBClient) *writeAp
 	return w
 }
 func buffer(lines []string) string {
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "")
 }
 
 func (w *writeApiImpl) Flush() {
@@ -101,11 +105,15 @@ x:
 
 func (w *writeApiImpl) flushBuffer() {
 	if len(w.writeBuffer) > 0 {
+		//go func(lines []string) {
 		if w.client.options.Debug > 1 {
 			log.Println("I! Writing batch")
 		}
 		batch := &batch{batch: buffer(w.writeBuffer)}
 		w.writeCh <- batch
+		//	lines = lines[:0]
+		//}(w.writeBuffer)
+		//w.writeBuffer = make([]string,0, w.client.options.BatchSize+1)
 		w.writeBuffer = w.writeBuffer[:0]
 	}
 }
@@ -190,7 +198,16 @@ func (w *writeApiImpl) write(batch *batch) error {
 }
 
 func (w *writeApiImpl) WriteRecord(line string) {
-	w.bufferCh <- line
+	b := []byte(line)
+	b = append(b, 0xa)
+	w.bufferCh <- string(b)
+}
+
+func (w *writeApiImpl) Write(point *Point) {
+	var buffer bytes.Buffer
+	e := lp.NewEncoder(&buffer)
+	e.Encode(point)
+	w.bufferCh <- string(buffer.Bytes())
 }
 
 func (w *writeApiImpl) writeUrl() (string, error) {
