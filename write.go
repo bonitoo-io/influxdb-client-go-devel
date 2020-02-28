@@ -13,7 +13,7 @@ import (
 
 type WriteApi interface {
 	WriteRecord(line string)
-	Flush() error
+	Flush()
 	close()
 }
 
@@ -25,7 +25,10 @@ type writeApiImpl struct {
 	retryBuffer []*batch
 	url         string
 	writeCh     chan *batch
-	tickerStop  chan int
+	bufferCh    chan string
+	retryStop   chan int
+	bufferStop  chan int
+	bufferFlush chan int
 	doneCh      chan int
 }
 
@@ -41,33 +44,70 @@ func newWriteApiImpl(org string, bucket string, client *InfluxDBClient) *writeAp
 		writeBuffer: make([]string, 0, client.options.BatchSize+1),
 		retryBuffer: make([]*batch, 0, 10),
 		writeCh:     make(chan *batch),
-		tickerStop:  make(chan int),
+		retryStop:   make(chan int),
 		doneCh:      make(chan int),
+		bufferCh:    make(chan string),
+		bufferStop:  make(chan int),
+		bufferFlush: make(chan int),
 	}
-
+	go w.bufferProc()
 	go w.writeProc()
 	go w.retryProc()
+
 	return w
 }
-func buffer(lines []string) *strings.Builder {
-	var builder strings.Builder
-	for _, line := range lines {
-		builder.WriteString(line)
-		builder.WriteString("\n")
-	}
-	return &builder
+func buffer(lines []string) string {
+	return strings.Join(lines, "\n")
 }
 
-func (w *writeApiImpl) Flush() error {
+func (w *writeApiImpl) Flush() {
+	w.bufferFlush <- 1
+	for len(w.writeBuffer) > 0 {
+		if w.client.options.Debug > 1 {
+			log.Println("I! Waiting buffer is flushed")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func (w *writeApiImpl) bufferProc() {
+	if w.client.options.Debug > 1 {
+		log.Println("I! Buffer proc started")
+	}
+	ticker := time.NewTicker(time.Duration(w.client.options.FlushInterval) * time.Millisecond)
+x:
+	for {
+		select {
+		case line := <-w.bufferCh:
+			w.writeBuffer = append(w.writeBuffer, line)
+			if len(w.writeBuffer) == w.client.options.BatchSize {
+				w.flushBuffer()
+			}
+		case <-ticker.C:
+			w.flushBuffer()
+		case <-w.bufferFlush:
+			w.flushBuffer()
+		case <-w.bufferStop:
+			ticker.Stop()
+			w.flushBuffer()
+			break x
+		}
+	}
+	if w.client.options.Debug > 1 {
+		log.Println("I! Buffer proc finished")
+	}
+	w.doneCh <- 1
+}
+
+func (w *writeApiImpl) flushBuffer() {
 	if len(w.writeBuffer) > 0 {
-		batch := &batch{batch: buffer(w.writeBuffer).String()}
 		if w.client.options.Debug > 1 {
 			log.Println("I! Writing batch")
 		}
+		batch := &batch{batch: buffer(w.writeBuffer)}
 		w.writeCh <- batch
 		w.writeBuffer = w.writeBuffer[:0]
 	}
-	return nil
 }
 
 func (w *writeApiImpl) writeProc() {
@@ -88,13 +128,12 @@ func (w *writeApiImpl) retryProc() {
 		log.Println("I! Retry proc started")
 	}
 	ticker := time.NewTicker(time.Second * time.Duration(w.client.options.RetryInterval))
-
 x:
 	for {
 		select {
 		case <-ticker.C:
 			//w.writeCh <- batch
-		case <-w.tickerStop:
+		case <-w.retryStop:
 			ticker.Stop()
 			break x
 		}
@@ -109,16 +148,20 @@ x:
 func (w *writeApiImpl) close() {
 	// Flush outstanding metrics
 	w.Flush()
+	w.bufferStop <- 1
 	for len(w.writeCh) > 0 {
 		if w.client.options.Debug > 1 {
 			log.Printf("I! Waiting for outstanding batches: %d\n", len(w.writeCh))
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond)
 	}
+	close(w.bufferStop)
+	close(w.bufferFlush)
 	close(w.writeCh)
-	w.tickerStop <- 1
-	close(w.tickerStop)
-	//wait for write proc and retry proc
+	w.retryStop <- 1
+	close(w.retryStop)
+	//wait for write proc, retry and buffer proc
+	<-w.doneCh
 	<-w.doneCh
 	<-w.doneCh
 }
@@ -147,15 +190,7 @@ func (w *writeApiImpl) write(batch *batch) error {
 }
 
 func (w *writeApiImpl) WriteRecord(line string) {
-	w.writeBuffer = append(w.writeBuffer, line)
-	if len(w.writeBuffer) == w.client.options.BatchSize {
-		if w.client.options.Debug > 1 {
-			log.Println("I! Writing batch")
-		}
-		batch := &batch{batch: buffer(w.writeBuffer).String()}
-		w.writeCh <- batch
-		w.writeBuffer = w.writeBuffer[:0]
-	}
+	w.bufferCh <- line
 }
 
 func (w *writeApiImpl) writeUrl() (string, error) {
