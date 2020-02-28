@@ -102,7 +102,7 @@ func TestQuery(t *testing.T) {
 
 func token() string {
 	if authToken == "" {
-		authToken = "R2UzN71P5xWaEmBf_MLBntKMUGu29-UP-jiw7kTuEHmJRfUyk8HGzQtvrwTVaY_k_qKsHSW9zHk5bpTPK9TpTg=="
+		authToken = "i3EE29aNIQqWPFHzUUTzvp83gZiro1ZQuAXFlESch2dG_8YUUlDWqtKSxwdMu7xXtlBDo9e1UHZ976GCmJ4PFg=="
 	}
 	return authToken
 }
