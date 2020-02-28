@@ -10,8 +10,10 @@ import (
 )
 
 type Options struct {
-	BatchSize  int
-	MaxRetries int
+	BatchSize int
+	// flush interval in ms
+	FlushInterval int
+	MaxRetries    int
 	// 0 error, 1 - warning, 2 - info, 3 - debug
 	Debug int
 	// Retry interval in sec
@@ -20,7 +22,7 @@ type Options struct {
 
 // TODO: singleton?
 func DefaultOptions() *Options {
-	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60}
+	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000}
 }
 
 type InfluxDBClient struct {
