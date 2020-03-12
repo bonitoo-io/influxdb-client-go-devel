@@ -1,11 +1,21 @@
 package client
 
 import (
+	"flag"
 	"fmt"
 	"testing"
 )
 
+var e2e bool
+
+func init() {
+	flag.BoolVar(&e2e, "e2e", false, "run the end tests (requires a working influxdb instance on 127.0.0.1)")
+}
+
 func TestReady(t *testing.T) {
+	if !e2e {
+		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
+	}
 	client := NewInfluxDBClient("http://localhost:9999", "my-token-123")
 	ok, err := client.Ready()
 	if err != nil {
@@ -19,6 +29,9 @@ func TestReady(t *testing.T) {
 var authToken string
 
 func TestSetup(t *testing.T) {
+	if !e2e {
+		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
+	}
 	client := NewInfluxDBClientEmpty("http://localhost:9999")
 	client.options.Debug = 2
 	response, err := client.Setup("my-user", "my-password", "my-org", "my-bucket")
@@ -32,6 +45,9 @@ func TestSetup(t *testing.T) {
 
 }
 func TestWrite(t *testing.T) {
+	if !e2e {
+		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
+	}
 	client := NewInfluxDBClient("http://localhost:9999", token())
 	client.options.Debug = 3
 	writeApi := client.WriteAPI("my-org", "my-bucket")
@@ -45,6 +61,9 @@ func TestWrite(t *testing.T) {
 }
 
 func TestQueryString(t *testing.T) {
+	if !e2e {
+		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
+	}
 	client := NewInfluxDBClient("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
@@ -57,6 +76,9 @@ func TestQueryString(t *testing.T) {
 }
 
 func TestQueryRaw(t *testing.T) {
+	if !e2e {
+		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
+	}
 	client := NewInfluxDBClient("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
@@ -76,7 +98,9 @@ func TestQueryRaw(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-
+	if !e2e {
+		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
+	}
 	client := NewInfluxDBClient("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
