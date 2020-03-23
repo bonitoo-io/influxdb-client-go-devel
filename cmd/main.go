@@ -23,11 +23,11 @@ type Writer interface {
 }
 
 type WriterV2P struct {
-	influx   *clientb.InfluxDBClient
+	influx   clientb.InfluxDBClient
 	writeApi clientb.WriteApi
 }
 type WriterV2R struct {
-	influx   *clientb.InfluxDBClient
+	influx   clientb.InfluxDBClient
 	writeApi clientb.WriteApi
 }
 
@@ -181,9 +181,9 @@ func (w *WriterV2R) Close() error {
 
 func (w *WriterV2P) Write(id int, measurementName string, iteration int) {
 	point := clientb.NewPoint(
-		map[string]interface{}{"temperature": fmt.Sprintf("%v", time.Now().UnixNano())},
 		measurementName,
 		map[string]string{"id": fmt.Sprintf("%v", id)},
+		map[string]interface{}{"temperature": fmt.Sprintf("%v", time.Now().UnixNano())},
 		time.Unix(0, int64(iteration)))
 	w.writeApi.Write(point)
 }

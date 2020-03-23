@@ -13,9 +13,9 @@ import (
 // It requires a client be set up with a username and password.
 // If successful will add a token to the client.
 // RetentionPeriodHrs of zero will result in infinite retention.
-func (c *InfluxDBClient) Setup(username, password, org, bucket string) (*SetupResponse, error) {
+func (c *client) Setup(username, password, org, bucket string) (*SetupResponse, error) {
 	if username == "" || password == "" {
-		return nil, errors.New("a username and password is requred for a setup")
+		return nil, errors.New("a username and password is required for a setup")
 	}
 	var setupResult *SetupResponse
 	inputData, err := json.Marshal(SetupRequest{
