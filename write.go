@@ -4,14 +4,11 @@ package client
 // - flush proc
 // - retry on error
 import (
-	"bytes"
 	"log"
 	"net/url"
 	"path"
 	"strings"
 	"time"
-
-	lp "github.com/influxdata/line-protocol"
 )
 
 type WriteApi interface {
@@ -24,7 +21,7 @@ type WriteApi interface {
 type writeApiImpl struct {
 	org         string
 	bucket      string
-	client      *InfluxDBClient
+	client      InfluxDBClient
 	writeBuffer []string
 	retryBuffer []*batch
 	url         string
@@ -41,11 +38,11 @@ type batch struct {
 	retries int
 }
 
-func newWriteApiImpl(org string, bucket string, client *InfluxDBClient) *writeApiImpl {
+func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApiImpl {
 	w := &writeApiImpl{org: org,
 		bucket:      bucket,
 		client:      client,
-		writeBuffer: make([]string, 0, client.options.BatchSize+1),
+		writeBuffer: make([]string, 0, client.Options().BatchSize+1),
 		retryBuffer: make([]*batch, 0, 10),
 		writeCh:     make(chan *batch),
 		retryStop:   make(chan int),
@@ -67,7 +64,7 @@ func buffer(lines []string) string {
 func (w *writeApiImpl) Flush() {
 	w.bufferFlush <- 1
 	for len(w.writeBuffer) > 0 {
-		if w.client.options.Debug > 1 {
+		if w.client.Options().Debug > 1 {
 			log.Println("I! Waiting buffer is flushed")
 		}
 		time.Sleep(time.Millisecond)
@@ -75,16 +72,16 @@ func (w *writeApiImpl) Flush() {
 }
 
 func (w *writeApiImpl) bufferProc() {
-	if w.client.options.Debug > 1 {
+	if w.client.Options().Debug > 1 {
 		log.Println("I! Buffer proc started")
 	}
-	ticker := time.NewTicker(time.Duration(w.client.options.FlushInterval) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(w.client.Options().FlushInterval) * time.Millisecond)
 x:
 	for {
 		select {
 		case line := <-w.bufferCh:
 			w.writeBuffer = append(w.writeBuffer, line)
-			if len(w.writeBuffer) == w.client.options.BatchSize {
+			if len(w.writeBuffer) == w.client.Options().BatchSize {
 				w.flushBuffer()
 			}
 		case <-ticker.C:
@@ -97,7 +94,7 @@ x:
 			break x
 		}
 	}
-	if w.client.options.Debug > 1 {
+	if w.client.Options().Debug > 1 {
 		log.Println("I! Buffer proc finished")
 	}
 	w.doneCh <- 1
@@ -106,7 +103,7 @@ x:
 func (w *writeApiImpl) flushBuffer() {
 	if len(w.writeBuffer) > 0 {
 		//go func(lines []string) {
-		if w.client.options.Debug > 1 {
+		if w.client.Options().Debug > 1 {
 			log.Println("I! Writing batch")
 		}
 		batch := &batch{batch: buffer(w.writeBuffer)}
@@ -119,23 +116,23 @@ func (w *writeApiImpl) flushBuffer() {
 }
 
 func (w *writeApiImpl) writeProc() {
-	if w.client.options.Debug > 1 {
+	if w.client.Options().Debug > 1 {
 		log.Println("I! Write proc started")
 	}
 	for batch := range w.writeCh {
 		w.write(batch)
 	}
-	if w.client.options.Debug > 1 {
+	if w.client.Options().Debug > 1 {
 		log.Println("I! Write proc finished")
 	}
 	w.doneCh <- 1
 }
 
 func (w *writeApiImpl) retryProc() {
-	if w.client.options.Debug > 1 {
+	if w.client.Options().Debug > 1 {
 		log.Println("I! Retry proc started")
 	}
-	ticker := time.NewTicker(time.Second * time.Duration(w.client.options.RetryInterval))
+	ticker := time.NewTicker(time.Second * time.Duration(w.client.Options().RetryInterval))
 x:
 	for {
 		select {
@@ -147,7 +144,7 @@ x:
 		}
 	}
 
-	if w.client.options.Debug > 1 {
+	if w.client.Options().Debug > 1 {
 		log.Println("I! Retry proc finished")
 	}
 	w.doneCh <- 1
@@ -158,7 +155,7 @@ func (w *writeApiImpl) close() {
 	w.Flush()
 	w.bufferStop <- 1
 	for len(w.writeCh) > 0 {
-		if w.client.options.Debug > 1 {
+		if w.client.Options().Debug > 1 {
 			log.Printf("I! Waiting for outstanding batches: %d\n", len(w.writeCh))
 		}
 		time.Sleep(time.Millisecond)
@@ -180,16 +177,16 @@ func (w *writeApiImpl) write(batch *batch) error {
 		log.Printf("E! %s\n", err.Error())
 		return err
 	}
-	if w.client.options.Debug > 2 {
+	if w.client.Options().Debug > 2 {
 		log.Printf("D! Writing batch: %s", batch.batch)
 	}
 	err = w.client.postRequest(url, strings.NewReader(batch.batch), nil, nil)
 	if err != nil {
-		if w.client.options.Debug > 0 {
+		if w.client.Options().Debug > 0 {
 			log.Printf("W! Write error: %s\nBatch kept for retrying\n", err.Error())
 		}
 		//
-		if batch.retries < w.client.options.MaxRetries {
+		if batch.retries < w.client.Options().MaxRetries {
 			w.retryBuffer = append(w.retryBuffer, batch)
 		}
 		return err
@@ -204,15 +201,12 @@ func (w *writeApiImpl) WriteRecord(line string) {
 }
 
 func (w *writeApiImpl) Write(point *Point) {
-	var buffer bytes.Buffer
-	e := lp.NewEncoder(&buffer)
-	e.Encode(point)
-	w.bufferCh <- string(buffer.Bytes())
+	w.bufferCh <- point.ToLineProtocol(w.client.Options().Precision)
 }
 
 func (w *writeApiImpl) writeUrl() (string, error) {
 	if w.url == "" {
-		u, err := url.Parse(w.client.serverUrl)
+		u, err := url.Parse(w.client.ServerUrl())
 		if err != nil {
 			return "", err
 		}
