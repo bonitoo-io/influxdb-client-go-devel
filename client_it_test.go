@@ -16,7 +16,8 @@ func TestReady(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewInfluxDBClient("http://localhost:9999", "my-token-123")
+	client := NewInfluxDBClientWithToken("http://localhost:9999", "my-token-123")
+
 	ok, err := client.Ready()
 	if err != nil {
 		t.Error(err)
@@ -33,7 +34,7 @@ func TestSetup(t *testing.T) {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
 	client := NewInfluxDBClientEmpty("http://localhost:9999")
-	client.options.Debug = 2
+	client.Options().Debug = 2
 	response, err := client.Setup("my-user", "my-password", "my-org", "my-bucket")
 	if err != nil {
 		t.Error(err)
@@ -48,8 +49,8 @@ func TestWrite(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewInfluxDBClient("http://localhost:9999", token())
-	client.options.Debug = 3
+	client := NewInfluxDBClientWithToken("http://localhost:9999", token())
+	client.Options().Debug = 3
 	writeApi := client.WriteAPI("my-org", "my-bucket")
 	for i, f := 0, 3.3; i < 10; i++ {
 		writeApi.WriteRecord(fmt.Sprintf("test,a=%d,b=adsfasdf f=%.2f,i=%di", i%2, f, i))
@@ -64,7 +65,7 @@ func TestQueryString(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewInfluxDBClient("http://localhost:9999", token())
+	client := NewInfluxDBClientWithToken("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
 	res, err := queryApi.QueryString(`from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`)
@@ -79,7 +80,7 @@ func TestQueryRaw(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewInfluxDBClient("http://localhost:9999", token())
+	client := NewInfluxDBClientWithToken("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
 	fmt.Println("QueryResult")
@@ -101,7 +102,7 @@ func TestQuery(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewInfluxDBClient("http://localhost:9999", token())
+	client := NewInfluxDBClientWithToken("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
 	fmt.Println("QueryResult")
