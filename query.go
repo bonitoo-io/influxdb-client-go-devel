@@ -37,7 +37,7 @@ type QueryApi interface {
 
 type QueryApiImpl struct {
 	org    string
-	client *InfluxDBClient
+	client InfluxDBClient
 	url    string
 }
 
@@ -57,7 +57,7 @@ type dialect struct {
 }
 
 func (q *QueryApiImpl) QueryString(query string) (string, error) {
-	url := fmt.Sprintf("%s/api/v2/query?org=%s", q.client.serverUrl, q.org)
+	url := fmt.Sprintf("%s/api/v2/query?org=%s", q.client.ServerUrl(), q.org)
 	var body string
 	err := q.client.postRequest(url, strings.NewReader(query), func(req *http.Request) {
 		req.Header.Add("Content-Type", "application/vnd.flux")
@@ -131,7 +131,7 @@ func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
 
 func (q *QueryApiImpl) queryUrl() (string, error) {
 	if q.url == "" {
-		u, err := url.Parse(q.client.serverUrl)
+		u, err := url.Parse(q.client.ServerUrl())
 		if err != nil {
 			return "", err
 		}
@@ -272,11 +272,7 @@ func toValue(s, t string) (interface{}, error) {
 	case timeDatatypeRFC:
 		return time.Parse(time.RFC3339, s)
 	case timeDatatypeRFCNano:
-		nsec, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		return time.Unix(0, nsec), nil
+		return time.Parse(time.RFC3339Nano, s)
 	case durationDatatype:
 		return time.ParseDuration(s)
 	case doubleDatatype:
