@@ -78,29 +78,29 @@ func verifyPoint(t *testing.T, p *Point) {
 	assert.Equal(t, p.Name(), "test")
 	require.Len(t, p.TagList(), 4)
 	assert.Equal(t, p.TagList(), []*lp.Tag{
-		{`host"name`, "ho\\st \"a\""},
-		{"id", "10ad="},
-		{`ven=dor`, "AWS"},
-		{"x\\\" x", "a b"}})
+		{Key: `host"name`, Value: "ho\\st \"a\""},
+		{Key: "id", Value: "10ad="},
+		{Key: `ven=dor`, Value: "AWS"},
+		{Key: "x\\\" x", Value: "a b"}})
 	require.Len(t, p.FieldList(), 17)
 	assert.Equal(t, p.FieldList(), []*lp.Field{
-		{`"string"`, `six, "seven", eight`},
-		{"bo\\ol", false},
-		{"duration", "4h24m3s"},
-		{"float32", 80.0},
-		{"float64", 80.1234567},
-		{"int", int64(-1234567890)},
-		{"int16", int64(-3456)},
-		{"int32", int64(-34567)},
-		{"int64", int64(-1234567890)},
-		{"int8", int64(-34)},
-		{"stri=ng", `six=seven\, eight`},
-		{"time", "2020-03-20T10:30:23.123456789Z"},
-		{"uint", uint64(12345677890)},
-		{"uint 64", uint64(41234567890)},
-		{"uint16", uint64(3456)},
-		{"uint32", uint64(34578)},
-		{"uint8", uint64(34)},
+		{Key: `"string"`, Value: `six, "seven", eight`},
+		{Key: "bo\\ol", Value: false},
+		{Key: "duration", Value: "4h24m3s"},
+		{Key: "float32", Value: 80.0},
+		{Key: "float64", Value: 80.1234567},
+		{Key: "int", Value: int64(-1234567890)},
+		{Key: "int16", Value: int64(-3456)},
+		{Key: "int32", Value: int64(-34567)},
+		{Key: "int64", Value: int64(-1234567890)},
+		{Key: "int8", Value: int64(-34)},
+		{Key: "stri=ng", Value: `six=seven\, eight`},
+		{Key: "time", Value: "2020-03-20T10:30:23.123456789Z"},
+		{Key: "uint", Value: uint64(12345677890)},
+		{Key: "uint 64", Value: uint64(41234567890)},
+		{Key: "uint16", Value: uint64(3456)},
+		{Key: "uint32", Value: uint64(34578)},
+		{Key: "uint8", Value: uint64(34)},
 	})
 	line := p.ToLineProtocol(WritePrecisionNS)
 	assert.True(t, strings.HasSuffix(line, "\n"))
