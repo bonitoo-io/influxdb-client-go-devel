@@ -6,7 +6,18 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	url2 "net/url"
+	"path"
 	"time"
+
+	. "github.com/bonitoo-io/influxdb-client-go/domain"
+)
+
+const (
+	WritePrecisionNS WritePrecision = "ns"
+	WritePrecisionUS WritePrecision = "us"
+	WritePrecisionMS WritePrecision = "ms"
+	WritePrecisionS  WritePrecision = "s"
 )
 
 type Options struct {
@@ -18,37 +29,50 @@ type Options struct {
 	Debug int
 	// Retry interval in sec
 	RetryInterval int
+	//
+	Precision WritePrecision
 }
 
 // TODO: singleton?
 func DefaultOptions() *Options {
-	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000}
+	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: WritePrecisionNS}
 }
 
-type InfluxDBClient struct {
+type InfluxDBClient interface {
+	WriteAPI(org, bucket string) WriteApi
+	Close()
+	QueryAPI(org string) QueryApi
+	postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) error
+	Options() *Options
+	ServerUrl() string
+	Setup(username, password, org, bucket string) (*SetupResponse, error)
+	Ready() (bool, error)
+}
+
+type client struct {
 	serverUrl     string
 	authorization string
-	client        *http.Client
 	options       Options
 	writeApis     []WriteApi
+	httpDoer      HttpRequestDoer
 }
 
 type RequestCallback func(req *http.Request)
 type ResponseCallback func(req *http.Response) error
 
-func NewInfluxDBClientEmpty(serverUrl string) *InfluxDBClient {
-	return NewInfluxDBClient(serverUrl, "")
+func NewInfluxDBClientEmpty(serverUrl string) InfluxDBClient {
+	return NewInfluxDBClientWithToken(serverUrl, "")
 }
 
-func NewInfluxDBClient(serverUrl string, authToken string) *InfluxDBClient {
+func NewInfluxDBClientWithToken(serverUrl string, authToken string) InfluxDBClient {
 	return NewInfluxDBClientWithOptions(serverUrl, authToken, *DefaultOptions())
 }
 
-func NewInfluxDBClientWithOptions(serverUrl string, authToken string, options Options) *InfluxDBClient {
-	client := &InfluxDBClient{
+func NewInfluxDBClientWithOptions(serverUrl string, authToken string, options Options) InfluxDBClient {
+	client := &client{
 		serverUrl:     serverUrl,
 		authorization: "Token " + authToken,
-		client: &http.Client{
+		httpDoer: &http.Client{
 			Timeout: time.Second * 60,
 			Transport: &http.Transport{
 				DialContext: (&net.Dialer{
@@ -63,13 +87,25 @@ func NewInfluxDBClientWithOptions(serverUrl string, authToken string, options Op
 	}
 	return client
 }
-func (c InfluxDBClient) Ready() (bool, error) {
-	url := c.serverUrl + "/ready"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func (c *client) Options() *Options {
+	return &c.options
+}
+
+func (c *client) ServerUrl() string {
+	return c.serverUrl
+}
+
+func (c *client) Ready() (bool, error) {
+	url, err := url2.Parse(c.serverUrl)
 	if err != nil {
 		return false, err
 	}
-	resp, err := c.client.Do(req)
+	url.Path = path.Join(url.Path, "ready")
+	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
+	if err != nil {
+		return false, err
+	}
+	resp, err := c.httpDoer.Do(req)
 	if err != nil {
 		return false, err
 	}
@@ -77,25 +113,25 @@ func (c InfluxDBClient) Ready() (bool, error) {
 	return resp.StatusCode == http.StatusOK, nil
 }
 
-func (c *InfluxDBClient) WriteAPI(org, bucket string) WriteApi {
+func (c *client) WriteAPI(org, bucket string) WriteApi {
 	w := newWriteApiImpl(org, bucket, c)
 	c.writeApis = append(c.writeApis, w)
 	return w
 }
-func (c *InfluxDBClient) Close() {
+func (c *client) Close() {
 	for _, w := range c.writeApis {
 		w.close()
 	}
 }
 
-func (c *InfluxDBClient) QueryAPI(org string) QueryApi {
+func (c *client) QueryAPI(org string) QueryApi {
 	return &QueryApiImpl{
 		org:    org,
 		client: c,
 	}
 }
 
-func (c *InfluxDBClient) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) error {
+func (c *client) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) error {
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
 		return err
@@ -105,7 +141,7 @@ func (c *InfluxDBClient) postRequest(url string, body io.Reader, requestCallback
 	if requestCallback != nil {
 		requestCallback(req)
 	}
-	resp, err := c.client.Do(req)
+	resp, err := c.httpDoer.Do(req)
 	if err != nil {
 		return err
 	}
