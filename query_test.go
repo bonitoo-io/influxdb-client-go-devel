@@ -107,18 +107,16 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,a,b
 ,,1,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T10:34:08.135814545Z,4,i,test,1,adsfasdf
-,,1,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.850214724Z,1,i,test,1,adsfasdf
+,,1,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.850214724Z,-1,i,test,1,adsfasdf
 
-
-#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,bool,string,string,string,string
 #group,false,false,true,true,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,a,b
-,,2,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.62797864Z,3.3,f,test,0,adsfasdf
-,,2,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.969100374Z,9.9,f,test,0,adsfasdf
+,,2,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.62797864Z,false,f,test,0,adsfasdf
+,,2,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.969100374Z,true,f,test,0,adsfasdf
 
-
-#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string
+#datatype,string,long,dateTime:RFC3339Nano,dateTime:RFC3339Nano,dateTime:RFC3339Nano,unsignedLong,string,string,string,string
 #group,false,false,true,true,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,a,b
@@ -204,7 +202,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"_start":       mustParseTime("2020-02-17T22:19:49.747562847Z"),
 			"_stop":        mustParseTime("2020-02-18T22:19:49.747562847Z"),
 			"_time":        mustParseTime("2020-02-18T22:08:44.850214724Z"),
-			"_value":       int64(1),
+			"_value":       int64(-1),
 			"_field":       "i",
 			"_measurement": "test",
 			"a":            "1",
@@ -219,7 +217,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			{dataType: "dateTime:RFC3339", defaultValue: "", name: "_start", group: true, index: 2},
 			{dataType: "dateTime:RFC3339", defaultValue: "", name: "_stop", group: true, index: 3},
 			{dataType: "dateTime:RFC3339", defaultValue: "", name: "_time", group: false, index: 4},
-			{dataType: "double", defaultValue: "", name: "_value", group: false, index: 5},
+			{dataType: "bool", defaultValue: "", name: "_value", group: false, index: 5},
 			{dataType: "string", defaultValue: "", name: "_field", group: true, index: 6},
 			{dataType: "string", defaultValue: "", name: "_measurement", group: true, index: 7},
 			{dataType: "string", defaultValue: "", name: "a", group: true, index: 8},
@@ -233,7 +231,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"_start":       mustParseTime("2020-02-17T22:19:49.747562847Z"),
 			"_stop":        mustParseTime("2020-02-18T22:19:49.747562847Z"),
 			"_time":        mustParseTime("2020-02-18T22:08:44.62797864Z"),
-			"_value":       3.3,
+			"_value":       false,
 			"_field":       "f",
 			"_measurement": "test",
 			"a":            "0",
@@ -247,7 +245,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"_start":       mustParseTime("2020-02-17T22:19:49.747562847Z"),
 			"_stop":        mustParseTime("2020-02-18T22:19:49.747562847Z"),
 			"_time":        mustParseTime("2020-02-18T22:08:44.969100374Z"),
-			"_value":       9.9,
+			"_value":       true,
 			"_field":       "f",
 			"_measurement": "test",
 			"a":            "0",
@@ -259,10 +257,10 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 		columns: []*FluxColumn{
 			{dataType: "string", defaultValue: "_result", name: "result", group: false, index: 0},
 			{dataType: "long", defaultValue: "", name: "table", group: false, index: 1},
-			{dataType: "dateTime:RFC3339", defaultValue: "", name: "_start", group: true, index: 2},
-			{dataType: "dateTime:RFC3339", defaultValue: "", name: "_stop", group: true, index: 3},
-			{dataType: "dateTime:RFC3339", defaultValue: "", name: "_time", group: false, index: 4},
-			{dataType: "long", defaultValue: "", name: "_value", group: false, index: 5},
+			{dataType: "dateTime:RFC3339Nano", defaultValue: "", name: "_start", group: true, index: 2},
+			{dataType: "dateTime:RFC3339Nano", defaultValue: "", name: "_stop", group: true, index: 3},
+			{dataType: "dateTime:RFC3339Nano", defaultValue: "", name: "_time", group: false, index: 4},
+			{dataType: "unsignedLong", defaultValue: "", name: "_value", group: false, index: 5},
 			{dataType: "string", defaultValue: "", name: "_field", group: true, index: 6},
 			{dataType: "string", defaultValue: "", name: "_measurement", group: true, index: 7},
 			{dataType: "string", defaultValue: "", name: "a", group: true, index: 8},
@@ -276,7 +274,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"_start":       mustParseTime("2020-02-17T22:19:49.747562847Z"),
 			"_stop":        mustParseTime("2020-02-18T22:19:49.747562847Z"),
 			"_time":        mustParseTime("2020-02-18T22:08:44.62797864Z"),
-			"_value":       int64(0),
+			"_value":       uint64(0),
 			"_field":       "i",
 			"_measurement": "test",
 			"a":            "0",
@@ -290,7 +288,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"_start":       mustParseTime("2020-02-17T22:19:49.747562847Z"),
 			"_stop":        mustParseTime("2020-02-18T22:19:49.747562847Z"),
 			"_time":        mustParseTime("2020-02-18T22:08:44.969100374Z"),
-			"_value":       int64(2),
+			"_value":       uint64(2),
 			"_field":       "i",
 			"_measurement": "test",
 			"a":            "0",
@@ -305,13 +303,13 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.True(t, queryResult.Next())
 	require.Nil(t, queryResult.Err())
 
-	require.Equal(t, queryResult.table, expectedTable1)
+	require.Equal(t, queryResult.Table(), expectedTable1)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord11)
 
 	require.True(t, queryResult.Next())
 	require.Nil(t, queryResult.Err())
-	require.Equal(t, queryResult.table, expectedTable1)
+	require.Equal(t, queryResult.Table(), expectedTable1)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord12)
 
@@ -329,8 +327,8 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord22)
 
-	require.True(t, queryResult.Next())
-	require.Nil(t, queryResult.Err())
+	require.True(t, queryResult.Next(), queryResult.Err())
+	require.Nil(t, queryResult.Err(), queryResult.Err())
 
 	require.Equal(t, queryResult.table, expectedTable3)
 	require.NotNil(t, queryResult.Record())
@@ -389,4 +387,44 @@ func TestQueryRawResultMultiTables(t *testing.T) {
 	require.False(t, queryResult.Next())
 	require.Nil(t, queryResult.Err())
 
+}
+
+func TestErrorInRow(t *testing.T) {
+	csvRowsError := []string{
+		`#datatype,string,string`,
+		`#group,true,true`,
+		`#default,,`,
+		`,error,reference`,
+		`,failed to create physical plan: invalid time bounds from procedure from: bounds contain zero time,897`}
+	csvTable := makeCSVstring(csvRowsError)
+	reader := strings.NewReader(csvTable)
+	csvReader := csv.NewReader(reader)
+	csvReader.FieldsPerRecord = -1
+	queryResult := &QueryCSVResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
+
+	require.False(t, queryResult.Next())
+	require.NotNil(t, queryResult.Err())
+	assert.Equal(t, "failed to create physical plan: invalid time bounds from procedure from: bounds contain zero time,897", queryResult.Err().Error())
+
+	csvRowsErrorNoReference := []string{
+		`#datatype,string,string`,
+		`#group,true,true`,
+		`#default,,`,
+		`,error,reference`,
+		`,failed to create physical plan: invalid time bounds from procedure from: bounds contain zero time,`}
+	csvTable = makeCSVstring(csvRowsErrorNoReference)
+	reader = strings.NewReader(csvTable)
+	csvReader = csv.NewReader(reader)
+	csvReader.FieldsPerRecord = -1
+	queryResult = &QueryCSVResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
+
+	require.False(t, queryResult.Next())
+	require.NotNil(t, queryResult.Err())
+	assert.Equal(t, "failed to create physical plan: invalid time bounds from procedure from: bounds contain zero time", queryResult.Err().Error())
+
+}
+
+func makeCSVstring(rows []string) string {
+	csvTable := strings.Join(rows, "\r\n")
+	return fmt.Sprintf("%s\r\n", csvTable)
 }
