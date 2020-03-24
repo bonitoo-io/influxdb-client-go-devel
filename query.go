@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -208,20 +207,24 @@ const (
 // Actual parsed row is available through #Record() function
 func (q *QueryCSVResult) Next() bool {
 	var row []string
-
-	parsingState := parsingStateNormal
-readRow:
-	row, q.err = q.csvReader.Read()
 	// set closing query in case of preliminary return
 	closer := func() {
 		if err := q.Close(); err != nil {
-			log.Printf("[E] Error closing query: %s\n", err.Error())
+			message := err.Error()
+			if q.err != nil {
+				message = fmt.Sprintf("%s,%s", message, q.err.Error())
+			}
+			q.err = errors.New(message)
 		}
 	}
 	defer func() {
 		closer()
 	}()
+	parsingState := parsingStateNormal
+readRow:
+	row, q.err = q.csvReader.Read()
 	if q.err == io.EOF {
+		q.err = nil
 		return false
 	}
 	if q.err != nil {
@@ -281,9 +284,7 @@ readRow:
 		q.table = newFluxTableMetadata(q.tableIndex)
 		q.tableIndex++
 		for i, d := range row[1:] {
-			if q.table.Column(i) != nil {
-				q.table.AddColumn(newFluxColumn(i, d))
-			}
+			q.table.AddColumn(newFluxColumn(i, d))
 		}
 		goto readRow
 	case "#group":
