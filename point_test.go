@@ -68,7 +68,7 @@ func TestNewPoint(t *testing.T) {
 			`"string"`: `six, "seven", eight`,
 			"stri=ng":  `six=seven\, eight`,
 			"time":     time.Date(2020, time.March, 20, 10, 30, 23, 123456789, time.UTC),
-			"duration": time.Duration(4*time.Hour + 24*time.Minute + 3*time.Second),
+			"duration": 4*time.Hour + 24*time.Minute + 3*time.Second,
 		},
 		time.Unix(60, 70))
 	verifyPoint(t, p)
@@ -113,6 +113,8 @@ func TestPointAdd(t *testing.T) {
 	p := NewPointWithMeasurement("test")
 	p.AddTag("id", "10ad=")
 	p.AddTag("ven=dor", "AWS")
+	p.AddTag(`host"name`, "host_a")
+	//test re-setting same tag
 	p.AddTag(`host"name`, `ho\st "a"`)
 	p.AddTag(`x\" x`, "a b")
 	p.SortTags()
@@ -128,6 +130,8 @@ func TestPointAdd(t *testing.T) {
 	p.AddField("uint8", uint8(34))
 	p.AddField("uint16", uint16(3456))
 	p.AddField("uint32", uint32(34578))
+	p.AddField("uint 64", uint64(0))
+	// test re-setting same field
 	p.AddField("uint 64", uint64(41234567890))
 	p.AddField("bo\\ol", false)
 	p.AddField(`"string"`, `six, "seven", eight`)
