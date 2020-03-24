@@ -15,22 +15,6 @@ type FluxColumn struct {
 	defaultValue string
 }
 
-func (f *FluxColumn) SetDefaultValue(defaultValue string) {
-	f.defaultValue = defaultValue
-}
-
-func (f *FluxColumn) SetGroup(group bool) {
-	f.group = group
-}
-
-func (f *FluxColumn) SetDataType(dataType string) {
-	f.dataType = dataType
-}
-
-func (f *FluxColumn) SetName(name string) {
-	f.name = name
-}
-
 type FluxRecord struct {
 	tableIndex int
 	values     map[string]interface{}
@@ -58,6 +42,21 @@ func (f *FluxTableMetadata) Column(index int) *FluxColumn {
 		return nil
 	}
 	return f.columns[index]
+}
+func (f *FluxColumn) SetDefaultValue(defaultValue string) {
+	f.defaultValue = defaultValue
+}
+
+func (f *FluxColumn) SetGroup(group bool) {
+	f.group = group
+}
+
+func (f *FluxColumn) SetDataType(dataType string) {
+	f.dataType = dataType
+}
+
+func (f *FluxColumn) SetName(name string) {
+	f.name = name
 }
 
 func newFluxColumn(index int, dataType string) *FluxColumn {
