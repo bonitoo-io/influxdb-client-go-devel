@@ -3,12 +3,14 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -20,7 +22,7 @@ import (
 const (
 	stringDatatype       = "string"
 	doubleDatatype       = "double"
-	boolDatatype         = "boolean"
+	boolDatatype         = "bool"
 	longDatatype         = "long"
 	uLongDatatype        = "unsignedLong"
 	durationDatatype     = "duration"
@@ -57,9 +59,12 @@ type dialect struct {
 }
 
 func (q *QueryApiImpl) QueryString(query string) (string, error) {
-	url := fmt.Sprintf("%s/api/v2/query?org=%s", q.client.ServerUrl(), q.org)
+	queryUrl, err := q.queryUrl()
+	if err != nil {
+		return "", err
+	}
 	var body string
-	err := q.client.postRequest(url, strings.NewReader(query), func(req *http.Request) {
+	err = q.client.postRequest(queryUrl, strings.NewReader(query), func(req *http.Request) {
 		req.Header.Add("Content-Type", "application/vnd.flux")
 	},
 		func(resp *http.Response) error {
@@ -78,7 +83,7 @@ func (q *QueryApiImpl) QueryString(query string) (string, error) {
 
 func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
 	var queryResult *QueryRawResult
-	url, err := q.queryUrl()
+	queryUrl, err := q.queryUrl()
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +96,7 @@ func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = q.client.postRequest(url, bytes.NewReader(qrJson), func(req *http.Request) {
+	err = q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
 	},
 		func(resp *http.Response) error {
@@ -104,7 +109,7 @@ func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
 
 func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
 	var queryResult *QueryCSVResult
-	url, err := q.queryUrl()
+	queryUrl, err := q.queryUrl()
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +122,7 @@ func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = q.client.postRequest(url, bytes.NewReader(qrJson), func(req *http.Request) {
+	err = q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
 	},
 		func(resp *http.Response) error {
@@ -190,18 +195,33 @@ func (q *QueryCSVResult) Record() *FluxRecord {
 	return q.record
 }
 
+type parsingState int
+
+const (
+	parsingStateNormal parsingState = iota
+	parsingStateNameRow
+	parsingStateError
+)
+
 // Next advances to next row in query result.
 // During the first time run it creates also tableIndex metadata
 // Actual parsed row is available through #Record() function
 func (q *QueryCSVResult) Next() bool {
 	var row []string
-	inNameRow := false
 
+	parsingState := parsingStateNormal
 readRow:
 	row, q.err = q.csvReader.Read()
-
+	// set closing query in case of preliminary return
+	closer := func() {
+		if err := q.Close(); err != nil {
+			log.Printf("[E] Error closing query: %s\n", err.Error())
+		}
+	}
+	defer func() {
+		closer()
+	}()
 	if q.err == io.EOF {
-		q.err = q.Close()
 		return false
 	}
 	if q.err != nil {
@@ -213,21 +233,47 @@ readRow:
 	}
 	switch row[0] {
 	case "":
-		if inNameRow {
-			for i, n := range row[1:] {
-				q.table.Column(i).SetName(n)
+		if parsingState == parsingStateError {
+			var message string
+			if len(row) > 1 {
+				message = row[1]
+			} else {
+				message = "unknown query error"
 			}
-			inNameRow = false
+			reference := ""
+			if len(row) > 2 && len(row[2]) > 0 {
+				reference = fmt.Sprintf(",%s", row[2])
+			}
+			q.err = fmt.Errorf("%s%s", message, reference)
+			return false
+		} else if parsingState == parsingStateNameRow {
+			if row[1] == "error" {
+				parsingState = parsingStateError
+			} else {
+				for i, n := range row[1:] {
+					if q.table.Column(i) != nil {
+						q.table.Column(i).SetName(n)
+					}
+				}
+				parsingState = parsingStateNormal
+			}
 			goto readRow
-		} else if q.table == nil {
-			q.err = errors.New("parsing error, tableIndex definition not found")
+		}
+		if q.table == nil {
+			q.err = errors.New("parsing error, table definition not found")
+			return false
+		}
+		if len(row)-1 != len(q.table.Columns()) {
+			q.err = fmt.Errorf("parsing error, row has different number of columns than table: %d vs %d", len(row)-1, len(q.table.Columns()))
 			return false
 		}
 		values := make(map[string]interface{})
 		for i, v := range row[1:] {
-			values[q.table.Column(i).Name()], q.err = toValue(stringTernary(v, q.table.Column(i).DefaultValue()), q.table.Column(i).DataType())
-			if q.err != nil {
-				return false
+			if q.table.Column(i) != nil {
+				values[q.table.Column(i).Name()], q.err = toValue(stringTernary(v, q.table.Column(i).DefaultValue()), q.table.Column(i).DataType())
+				if q.err != nil {
+					return false
+				}
 			}
 		}
 		q.record = newFluxRecord(q.table.Index(), values)
@@ -235,22 +281,30 @@ readRow:
 		q.table = newFluxTableMetadata(q.tableIndex)
 		q.tableIndex++
 		for i, d := range row[1:] {
-			q.table.AddColumn(newFluxColumn(i, d))
+			if q.table.Column(i) != nil {
+				q.table.AddColumn(newFluxColumn(i, d))
+			}
 		}
 		goto readRow
 	case "#group":
 		for i, g := range row[1:] {
-			q.table.Column(i).SetGroup(g == "true")
+			if q.table.Column(i) != nil {
+				q.table.Column(i).SetGroup(g == "true")
+			}
 		}
 		goto readRow
 	case "#default":
 		for i, c := range row[1:] {
-			q.table.Column(i).SetDefaultValue(c)
+			if q.table.Column(i) != nil {
+				q.table.Column(i).SetDefaultValue(c)
+			}
 		}
 		// there comes column names after defaults
-		inNameRow = true
+		parsingState = parsingStateNameRow
 		goto readRow
 	}
+	// don't close query
+	closer = func() {}
 	return true
 }
 
@@ -278,7 +332,7 @@ func toValue(s, t string) (interface{}, error) {
 	case doubleDatatype:
 		return strconv.ParseFloat(s, 64)
 	case boolDatatype:
-		if s == "false" {
+		if strings.ToLower(s) == "false" {
 			return false, nil
 		}
 		return true, nil
@@ -286,6 +340,8 @@ func toValue(s, t string) (interface{}, error) {
 		return strconv.ParseInt(s, 10, 64)
 	case uLongDatatype:
 		return strconv.ParseUint(s, 10, 64)
+	case base64BinaryDataType:
+		return base64.StdEncoding.DecodeString(s)
 	default:
 		return nil, fmt.Errorf("%s has unknown data type %s", s, t)
 	}
