@@ -4,7 +4,10 @@ package client
 // - flush proc
 // - retry on error
 import (
+	"github.com/bonitoo-io/influxdb-client-go/internal/gzip"
+	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
@@ -154,6 +157,7 @@ func (w *writeApiImpl) close() {
 	// Flush outstanding metrics
 	w.Flush()
 	w.bufferStop <- 1
+	// TODO: let procs finish on close request, than close channels
 	for len(w.writeCh) > 0 {
 		if w.client.Options().Debug > 1 {
 			log.Printf("I! Waiting for outstanding batches: %d\n", len(w.writeCh))
@@ -177,10 +181,22 @@ func (w *writeApiImpl) write(batch *batch) error {
 		log.Printf("E! %s\n", err.Error())
 		return err
 	}
+	var body io.Reader
+	body = strings.NewReader(batch.batch)
 	if w.client.Options().Debug > 2 {
 		log.Printf("D! Writing batch: %s", batch.batch)
 	}
-	err = w.client.postRequest(url, strings.NewReader(batch.batch), nil, nil)
+	if w.client.Options().UseGZip {
+		body, err = gzip.CompressWithGzip(body, 6)
+		if err != nil {
+			return err
+		}
+	}
+	err = w.client.postRequest(url, body, func(req *http.Request) {
+		if w.client.Options().UseGZip {
+			req.Header.Set("Content-Encoding", "gzip")
+		}
+	}, nil)
 	if err != nil {
 		if w.client.Options().Debug > 0 {
 			log.Printf("W! Write error: %s\nBatch kept for retrying\n", err.Error())

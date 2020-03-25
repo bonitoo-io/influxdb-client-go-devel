@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -123,8 +124,15 @@ func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
 	}
 	err = q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept-Encoding", "gzip")
 	},
 		func(resp *http.Response) error {
+			if resp.Header.Get("Content-Encoding") == "gzip" {
+				resp.Body, err = gzip.NewReader(resp.Body)
+				if err != nil {
+					return err
+				}
+			}
 			csvReader := csv.NewReader(resp.Body)
 			csvReader.FieldsPerRecord = -1
 			queryResult = &QueryCSVResult{Closer: resp.Body, csvReader: csvReader}

@@ -1,12 +1,14 @@
 package client
 
 import (
+	"compress/gzip"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ type testClient struct {
 	lines   []string
 	options *Options
 	t       *testing.T
+	wasGzip bool
 }
 
 func (t *testClient) WriteAPI(org, bucket string) WriteApi {
@@ -23,7 +26,10 @@ func (t *testClient) WriteAPI(org, bucket string) WriteApi {
 }
 
 func (t *testClient) Close() {
-
+	if len(t.lines) > 0 {
+		t.lines = t.lines[:0]
+	}
+	t.wasGzip = false
 }
 
 func (t *testClient) QueryAPI(org string) QueryApi {
@@ -31,6 +37,17 @@ func (t *testClient) QueryAPI(org string) QueryApi {
 }
 
 func (t *testClient) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) error {
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return err
+	}
+	if requestCallback != nil {
+		requestCallback(req)
+	}
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		body, err = gzip.NewReader(body)
+		t.wasGzip = true
+	}
 	assert.Equal(t.t, url, fmt.Sprintf("%s/api/v2/write?bucket=my-bucket&org=my-org", t.ServerUrl()))
 	bytes, err := ioutil.ReadAll(body)
 	lines := strings.Split(string(bytes), "\n")
@@ -101,4 +118,32 @@ func TestWriteApiImpl_Write(t *testing.T) {
 		line = line[:len(line)-1]
 		assert.Equal(t, client.lines[i], line)
 	}
+}
+
+func TestGzipWithFlushing(t *testing.T) {
+	client := &testClient{
+		options: DefaultOptions(),
+		t:       t,
+	}
+	client.options.BatchSize = 5
+	client.options.UseGZip = true
+	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
+	points := genPoints(5)
+	for _, p := range points {
+		writeApi.Write(p)
+	}
+	time.Sleep(time.Millisecond * 10)
+	require.Len(t, client.lines, 5)
+	assert.True(t, client.wasGzip)
+
+	client.Close()
+	client.options.UseGZip = false
+	for _, p := range points {
+		writeApi.Write(p)
+	}
+	time.Sleep(time.Millisecond * 10)
+	require.Len(t, client.lines, 5)
+	assert.False(t, client.wasGzip)
+
+	writeApi.close()
 }

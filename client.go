@@ -21,21 +21,27 @@ const (
 )
 
 type Options struct {
+	// Maximum number of points sent to server in single request. Default 5000
 	BatchSize int
-	// flush interval in ms
+	// Interval, in ms, in which is buffer flushed if it has not been already written (by reaching batch size) . Default 1000ms
 	FlushInterval int
-	MaxRetries    int
+	// Maximum count of retry attempts of failed writes
+	MaxRetries int
 	// 0 error, 1 - warning, 2 - info, 3 - debug
-	Debug int
-	// Retry interval in sec
+	Debug uint
+	// Default retry interval in sec, if not sent by server
+	// Default  30s
 	RetryInterval int
-	//
+	// Precision to use in writes, default NS
 	Precision WritePrecision
+	// Whether to use GZip compression in requests. Default false
+	UseGZip bool
 }
 
+// Options with default values
 // TODO: singleton?
 func DefaultOptions() *Options {
-	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: WritePrecisionNS}
+	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: WritePrecisionNS, UseGZip: false}
 }
 
 type InfluxDBClient interface {
