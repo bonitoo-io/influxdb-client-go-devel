@@ -38,7 +38,7 @@ func main() {
 	lineProtocolsCount := flag.Int("lineProtocolsCount", 100, "how much data writes in one batch")
 	skipCount := flag.Bool("skipCount", false, "skip counting count")
 	measurementName := flag.String("measurementName", fmt.Sprintf("sensor_%d", time.Now().UnixNano()), "writer measure destination")
-	debugLevel := flag.Int("debugLevel", 0, "Log messages level: 0 - error, 1 - warning, 2 - info, 3 - debug")
+	debugLevel := flag.Uint("debugLevel", 0, "Log messages level: 0 - error, 1 - warning, 2 - info, 3 - debug")
 	flag.Parse()
 
 	expected := (*threadsCount) * (*secondsCount) * (*lineProtocolsCount)
