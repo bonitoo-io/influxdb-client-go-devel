@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/bonitoo-io/influxdb-client-go/domain"
 	lp "github.com/influxdata/line-protocol"
 )
 
@@ -79,7 +78,7 @@ func (m *Point) Name() string {
 
 // ToLineProtocol creates InfluxDB line protocol string from the Point, converting associated timestamp according to precision
 // and write result to the string builder
-func (m *Point) ToLineProtocolBuffer(sb *strings.Builder, precision WritePrecision) {
+func (m *Point) ToLineProtocolBuffer(sb *strings.Builder, precision time.Duration) {
 	escapeKey(sb, m.Name())
 	sb.WriteRune(',')
 	for i, t := range m.tags {
@@ -106,29 +105,32 @@ func (m *Point) ToLineProtocolBuffer(sb *strings.Builder, precision WritePrecisi
 			sb.WriteString(fmt.Sprintf("%v", f.Value))
 		}
 		switch f.Value.(type) {
-		case uint64, int64:
+		case int64:
 			sb.WriteString("i")
+		case uint64:
+			sb.WriteString("u")
 		}
 	}
 	if !m.timestamp.IsZero() {
 		sb.WriteString(" ")
 		switch precision {
-		case WritePrecisionNS:
-			sb.WriteString(strconv.FormatInt(m.Time().UnixNano(), 10))
-		case WritePrecisionUS:
+		case time.Microsecond:
 			sb.WriteString(strconv.FormatInt(m.Time().UnixNano()/1000, 10))
-		case WritePrecisionMS:
+		case time.Millisecond:
 			sb.WriteString(strconv.FormatInt(m.Time().UnixNano()/1000000, 10))
-		case WritePrecisionS:
+		case time.Second:
 			sb.WriteString(strconv.FormatInt(m.Time().Unix(), 10))
+		default:
+			sb.WriteString(strconv.FormatInt(m.Time().UnixNano(), 10))
 		}
 	}
 	sb.WriteString("\n")
 }
 
 // ToLineProtocol creates InfluxDB line protocol string from the Point, converting associated timestamp according to precision
-func (m *Point) ToLineProtocol(precision WritePrecision) string {
+func (m *Point) ToLineProtocol(precision time.Duration) string {
 	var sb strings.Builder
+	sb.Grow(1024)
 	m.ToLineProtocolBuffer(&sb, precision)
 	return sb.String()
 }

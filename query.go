@@ -64,7 +64,7 @@ func (q *QueryApiImpl) QueryString(query string) (string, error) {
 		return "", err
 	}
 	var body string
-	err = q.client.postRequest(queryUrl, strings.NewReader(query), func(req *http.Request) {
+	error := q.client.postRequest(queryUrl, strings.NewReader(query), func(req *http.Request) {
 		req.Header.Add("Content-Type", "application/vnd.flux")
 	},
 		func(resp *http.Response) error {
@@ -75,8 +75,8 @@ func (q *QueryApiImpl) QueryString(query string) (string, error) {
 			body = string(respBody)
 			return nil
 		})
-	if err != nil {
-		return "", err
+	if error != nil {
+		return "", error
 	}
 	return body, nil
 }
@@ -96,7 +96,7 @@ func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
+	error := q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
 	},
 		func(resp *http.Response) error {
@@ -104,7 +104,10 @@ func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
 			queryResult = &QueryRawResult{Closer: resp.Body, scanner: scan}
 			return nil
 		})
-	return queryResult, err
+	if error != nil {
+		return queryResult, error
+	}
+	return queryResult, nil
 }
 
 func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
@@ -122,7 +125,7 @@ func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
+	error := q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept-Encoding", "gzip")
 	},
@@ -138,7 +141,10 @@ func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
 			queryResult = &QueryCSVResult{Closer: resp.Body, csvReader: csvReader}
 			return nil
 		})
-	return queryResult, err
+	if error != nil {
+		return queryResult, error
+	}
+	return queryResult, nil
 }
 
 func (q *QueryApiImpl) queryUrl() (string, error) {

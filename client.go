@@ -1,39 +1,38 @@
 package client
 
 import (
-	"errors"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"mime"
 	"net"
 	"net/http"
 	url2 "net/url"
 	"path"
+	"strconv"
 	"time"
 
-	. "github.com/bonitoo-io/influxdb-client-go/domain"
-)
-
-const (
-	WritePrecisionNS WritePrecision = "ns"
-	WritePrecisionUS WritePrecision = "us"
-	WritePrecisionMS WritePrecision = "ms"
-	WritePrecisionS  WritePrecision = "s"
+	"github.com/bonitoo-io/influxdb-client-go/domain"
 )
 
 type Options struct {
 	// Maximum number of points sent to server in single request. Default 5000
-	BatchSize int
+	BatchSize uint
 	// Interval, in ms, in which is buffer flushed if it has not been already written (by reaching batch size) . Default 1000ms
-	FlushInterval int
-	// Maximum count of retry attempts of failed writes
-	MaxRetries int
-	// 0 error, 1 - warning, 2 - info, 3 - debug
-	Debug uint
+	FlushInterval uint
 	// Default retry interval in sec, if not sent by server
 	// Default  30s
-	RetryInterval int
-	// Precision to use in writes, default NS
-	Precision WritePrecision
+	RetryInterval uint
+	// Maximum count of retry attempts of failed writes
+	MaxRetries uint
+	// Maximum number of points to keep for retry. Should be multiple of BatchSize. Default 10,000
+	RetryBufferLimit uint
+	// 0 error, 1 - warning, 2 - info, 3 - debug
+	Debug uint
+	// Precision to use in writes for timestamp. In unit of duration: time.Nanosecond, time.Microsecond, time.Millisecond, time.Second
+	// default time.Nanosecond
+	Precision time.Duration
 	// Whether to use GZip compression in requests. Default false
 	UseGZip bool
 }
@@ -41,14 +40,42 @@ type Options struct {
 // Options with default values
 // TODO: singleton?
 func DefaultOptions() *Options {
-	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: WritePrecisionNS, UseGZip: false}
+	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: time.Nanosecond, UseGZip: false, RetryBufferLimit: 10000}
 }
 
+// Error represent error response from InfluxDBServer
+type Error struct {
+	StatusCode int
+	Code       string
+	Message    string
+	Err        error
+	RetryAfter uint
+}
+
+func (e *Error) Error() string {
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+// NewError returns newly created Error initialised with nested error and default values
+func NewError(err error) *Error {
+	return &Error{
+		StatusCode: 0,
+		Code:       "",
+		Message:    "",
+		Err:        err,
+		RetryAfter: 0,
+	}
+}
+
+// InfluxDBClient provides functions to communicate with InfluxDBServer
 type InfluxDBClient interface {
 	WriteAPI(org, bucket string) WriteApi
 	Close()
 	QueryAPI(org string) QueryApi
-	postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) error
+	postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error
 	Options() *Options
 	ServerUrl() string
 	Setup(username, password, org, bucket string) (*SetupResponse, error)
@@ -60,7 +87,7 @@ type client struct {
 	authorization string
 	options       Options
 	writeApis     []WriteApi
-	httpDoer      HttpRequestDoer
+	httpDoer      domain.HttpRequestDoer
 }
 
 type RequestCallback func(req *http.Request)
@@ -137,10 +164,10 @@ func (c *client) QueryAPI(org string) QueryApi {
 	}
 }
 
-func (c *client) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) error {
+func (c *client) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error {
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {
-		return err
+		return NewError(err)
 	}
 	req.Header.Add("Authorization", c.authorization)
 	req.Header.Add("User-Agent", "InfluxDB Go Client")
@@ -149,22 +176,61 @@ func (c *client) postRequest(url string, body io.Reader, requestCallback Request
 	}
 	resp, err := c.httpDoer.Do(req)
 	if err != nil {
-		return err
+		return NewError(err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		//TODO: read json
-		respBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return errors.New(string(respBody))
+		return c.handleHttpError(resp)
 	}
 	if responseCallback != nil {
 		err := responseCallback(resp)
 		if err != nil {
-			return err
+			return NewError(err)
 		}
 	}
 	return nil
+}
+
+func (c *client) handleHttpError(r *http.Response) *Error {
+	// successful status code range
+	if r.StatusCode >= 200 && r.StatusCode < 300 {
+		return nil
+	}
+
+	error := NewError(nil)
+	error.StatusCode = r.StatusCode
+	if v := r.Header.Get("Retry-After"); v != "" {
+		r, err := strconv.ParseUint(v, 10, 32)
+		if err == nil {
+			error.RetryAfter = uint(r)
+		}
+	}
+	// json encoded error
+	ctype, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if ctype == "application/json" {
+		err := json.NewDecoder(r.Body).Decode(error)
+		error.Err = err
+		return error
+	} else {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			error.Err = err
+			return error
+		}
+
+		error.Code = r.Status
+		error.Message = string(body)
+	}
+
+	if error.Code == "" && error.Message == "" {
+		switch r.StatusCode {
+		case http.StatusTooManyRequests:
+			error.Code = "too many requests"
+			error.Message = "exceeded rate limit"
+		case http.StatusServiceUnavailable:
+			error.Code = "unavailable"
+			error.Message = "service temporarily unavailable"
+		}
+	}
+	return error
 }

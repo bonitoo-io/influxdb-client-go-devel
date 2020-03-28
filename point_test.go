@@ -102,11 +102,11 @@ func verifyPoint(t *testing.T, p *Point) {
 		{Key: "uint32", Value: uint64(34578)},
 		{Key: "uint8", Value: uint64(34)},
 	})
-	line := p.ToLineProtocol(WritePrecisionNS)
+	line := p.ToLineProtocol(time.Nanosecond)
 	assert.True(t, strings.HasSuffix(line, "\n"))
 	//cut off last \n char
 	line = line[:len(line)-1]
-	assert.Equal(t, line, `test,host"name=ho\st\ "a",id=10ad\=,ven\=dor=AWS,x\"\ x=a\ b "string"="six, \"seven\", eight",bo\ol=false,duration="4h24m3s",float32=80,float64=80.1234567,int=-1234567890i,int16=-3456i,int32=-34567i,int64=-1234567890i,int8=-34i,stri\=ng="six=seven\\, eight",time="2020-03-20T10:30:23.123456789Z",uint=12345677890i,uint\ 64=41234567890i,uint16=3456i,uint32=34578i,uint8=34i 60000000070`)
+	assert.Equal(t, line, `test,host"name=ho\st\ "a",id=10ad\=,ven\=dor=AWS,x\"\ x=a\ b "string"="six, \"seven\", eight",bo\ol=false,duration="4h24m3s",float32=80,float64=80.1234567,int=-1234567890i,int16=-3456i,int32=-34567i,int64=-1234567890i,int8=-34i,stri\=ng="six=seven\\, eight",time="2020-03-20T10:30:23.123456789Z",uint=12345677890u,uint\ 64=41234567890u,uint16=3456u,uint32=34578u,uint8=34u 60000000070`)
 }
 
 func TestPointAdd(t *testing.T) {
@@ -150,19 +150,19 @@ func TestPrecision(t *testing.T) {
 	p.AddField("float64", 80.1234567)
 
 	p.SetTime(time.Unix(60, 89))
-	line := p.ToLineProtocol(WritePrecisionNS)
+	line := p.ToLineProtocol(time.Nanosecond)
 	assert.Equal(t, line, "test,id=10 float64=80.1234567 60000000089\n")
 
 	p.SetTime(time.Unix(60, 56789))
-	line = p.ToLineProtocol(WritePrecisionUS)
+	line = p.ToLineProtocol(time.Microsecond)
 	assert.Equal(t, line, "test,id=10 float64=80.1234567 60000056\n")
 
 	p.SetTime(time.Unix(60, 123456789))
-	line = p.ToLineProtocol(WritePrecisionMS)
+	line = p.ToLineProtocol(time.Millisecond)
 	assert.Equal(t, line, "test,id=10 float64=80.1234567 60123\n")
 
 	p.SetTime(time.Unix(60, 123456789))
-	line = p.ToLineProtocol(WritePrecisionS)
+	line = p.ToLineProtocol(time.Second)
 	assert.Equal(t, line, "test,id=10 float64=80.1234567 60\n")
 }
 
@@ -196,7 +196,7 @@ func BenchmarkPointStringSingle(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		var buff strings.Builder
 		for _, p := range points {
-			buff.WriteString(p.ToLineProtocol(WritePrecisionNS))
+			buff.WriteString(p.ToLineProtocol(time.Nanosecond))
 		}
 		s = buff.String()
 	}
@@ -206,7 +206,7 @@ func BenchmarkPointStringMulti(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		var buff strings.Builder
 		for _, p := range points {
-			p.ToLineProtocolBuffer(&buff, WritePrecisionNS)
+			p.ToLineProtocolBuffer(&buff, time.Nanosecond)
 		}
 		s = buff.String()
 	}
