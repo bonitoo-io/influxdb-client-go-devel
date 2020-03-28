@@ -13,7 +13,6 @@ const (
 	InfluxDB2Url    = "http://localhost:9999"
 	InfluxDB2Bucket = "my-bucket"
 	InfluxDB2Org    = "my-org"
-	InfluxDB2Token  = "my-token"
 )
 
 type Writer interface {
@@ -37,9 +36,15 @@ func main() {
 	secondsCount := flag.Int("secondsCount", 30, "how long write into InfluxDB")
 	lineProtocolsCount := flag.Int("lineProtocolsCount", 100, "how much data writes in one batch")
 	skipCount := flag.Bool("skipCount", false, "skip counting count")
+	token := flag.String("token", "", "token")
 	measurementName := flag.String("measurementName", fmt.Sprintf("sensor_%d", time.Now().UnixNano()), "writer measure destination")
 	debugLevel := flag.Uint("debugLevel", 0, "Log messages level: 0 - error, 1 - warning, 2 - info, 3 - debug")
 	flag.Parse()
+
+	if *token == "" {
+		fmt.Println("Token must be specified")
+		return
+	}
 
 	expected := (*threadsCount) * (*secondsCount) * (*lineProtocolsCount)
 
@@ -57,7 +62,7 @@ func main() {
 	fmt.Println()
 
 	var writer Writer
-	influx := clientb.NewInfluxDBClientWithOptions(InfluxDB2Url, InfluxDB2Token, clientb.Options{
+	influx := clientb.NewInfluxDBClientWithOptions(InfluxDB2Url, *token, clientb.Options{
 		BatchSize:     5000,
 		Debug:         *debugLevel,
 		RetryInterval: 30,
