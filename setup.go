@@ -30,7 +30,7 @@ func (c *client) Setup(username, password, org, bucket string) (*SetupResponse, 
 	if c.options.Debug > 2 {
 		log.Printf("D! Request:\n%s\n", string(inputData))
 	}
-	err = c.postRequest(c.serverUrl+"/api/v2/setup", bytes.NewReader(inputData), func(req *http.Request) {
+	error := c.postRequest(c.serverUrl+"/api/v2/setup", bytes.NewReader(inputData), func(req *http.Request) {
 		req.Header.Add("Content-Type", "application/json; charset=utf-8")
 	},
 		func(resp *http.Response) error {
@@ -54,7 +54,10 @@ func (c *client) Setup(username, password, org, bucket string) (*SetupResponse, 
 			return nil
 		},
 	)
-	return setupResult, err
+	if error != nil {
+		return nil, error
+	}
+	return setupResult, nil
 }
 
 // SetupRequest is a request to setup a new influx instance.
