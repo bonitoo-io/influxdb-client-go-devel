@@ -22,21 +22,34 @@ type WriteApi interface {
 	close()
 }
 
-type writeApiImpl struct {
+type writeService struct {
 	org              string
 	bucket           string
 	client           InfluxDBClient
-	writeBuffer      []string
-	retryQueue       *queue
 	url              string
-	writeCh          chan *batch
-	bufferCh         chan string
-	writeStop        chan int
-	bufferStop       chan int
-	bufferFlush      chan int
-	doneCh           chan int
-	retryBufferLimit uint
 	lastWriteAttempt time.Time
+	retryQueue       *queue
+}
+
+func newWriteService(org string, bucket string, client InfluxDBClient) *writeService {
+	retryBufferLimit := client.Options().RetryBufferLimit / client.Options().BatchSize
+	if retryBufferLimit == 0 {
+		retryBufferLimit = 1
+	}
+	return &writeService{org: org, bucket: bucket, client: client, retryQueue: newQueue(int(retryBufferLimit))}
+}
+
+type writeApiImpl struct {
+	service     *writeService
+	writeBuffer []string
+
+	url         string
+	writeCh     chan *batch
+	bufferCh    chan string
+	writeStop   chan int
+	bufferStop  chan int
+	bufferFlush chan int
+	doneCh      chan int
 }
 
 type batch struct {
@@ -82,22 +95,15 @@ func (q *queue) isEmpty() bool {
 }
 
 func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApiImpl {
-	retryBufferLimit := client.Options().RetryBufferLimit / client.Options().BatchSize
-	if retryBufferLimit == 0 {
-		retryBufferLimit = 1
-	}
-	w := &writeApiImpl{org: org,
-		bucket:           bucket,
-		client:           client,
-		writeBuffer:      make([]string, 0, client.Options().BatchSize+1),
-		retryQueue:       newQueue(int(retryBufferLimit)),
-		writeCh:          make(chan *batch),
-		doneCh:           make(chan int),
-		bufferCh:         make(chan string),
-		bufferStop:       make(chan int),
-		writeStop:        make(chan int),
-		bufferFlush:      make(chan int),
-		retryBufferLimit: retryBufferLimit,
+	w := &writeApiImpl{
+		service:     newWriteService(org, bucket, client),
+		writeBuffer: make([]string, 0, client.Options().BatchSize+1),
+		writeCh:     make(chan *batch),
+		doneCh:      make(chan int),
+		bufferCh:    make(chan string),
+		bufferStop:  make(chan int),
+		writeStop:   make(chan int),
+		bufferFlush: make(chan int),
 	}
 	go w.bufferProc()
 	go w.writeProc()
@@ -115,13 +121,13 @@ func (w *writeApiImpl) Flush() {
 
 func (w *writeApiImpl) waitForFlushing() {
 	for len(w.writeBuffer) > 0 {
-		if w.client.Options().Debug > 1 {
+		if w.service.client.Options().Debug > 1 {
 			log.Println("I! Waiting buffer is flushed")
 		}
 		time.Sleep(time.Millisecond)
 	}
 	for len(w.writeCh) > 0 {
-		if w.client.Options().Debug > 1 {
+		if w.service.client.Options().Debug > 1 {
 			log.Println("I! Waiting buffer is written")
 		}
 		time.Sleep(time.Millisecond)
@@ -130,16 +136,16 @@ func (w *writeApiImpl) waitForFlushing() {
 }
 
 func (w *writeApiImpl) bufferProc() {
-	if w.client.Options().Debug > 1 {
+	if w.service.client.Options().Debug > 1 {
 		log.Println("I! Buffer proc started")
 	}
-	ticker := time.NewTicker(time.Duration(w.client.Options().FlushInterval) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(w.service.client.Options().FlushInterval) * time.Millisecond)
 x:
 	for {
 		select {
 		case line := <-w.bufferCh:
 			w.writeBuffer = append(w.writeBuffer, line)
-			if len(w.writeBuffer) == int(w.client.Options().BatchSize) {
+			if len(w.writeBuffer) == int(w.service.client.Options().BatchSize) {
 				w.flushBuffer()
 			}
 		case <-ticker.C:
@@ -152,7 +158,7 @@ x:
 			break x
 		}
 	}
-	if w.client.Options().Debug > 1 {
+	if w.service.client.Options().Debug > 1 {
 		log.Println("I! Buffer proc finished")
 	}
 	w.doneCh <- 1
@@ -161,41 +167,41 @@ x:
 func (w *writeApiImpl) flushBuffer() {
 	if len(w.writeBuffer) > 0 {
 		//go func(lines []string) {
-		if w.client.Options().Debug > 1 {
+		if w.service.client.Options().Debug > 1 {
 			log.Println("I! sending batch")
 		}
 		batch := &batch{batch: buffer(w.writeBuffer)}
 		w.writeCh <- batch
 		//	lines = lines[:0]
 		//}(w.writeBuffer)
-		//w.writeBuffer = make([]string,0, w.client.options.BatchSize+1)
+		//w.writeBuffer = make([]string,0, w.service.client.Options.BatchSize+1)
 		w.writeBuffer = w.writeBuffer[:0]
 	}
 }
 
 func (w *writeApiImpl) writeProc() {
-	if w.client.Options().Debug > 1 {
+	if w.service.client.Options().Debug > 1 {
 		log.Println("I! Write proc started")
 	}
 x:
 	for {
 		select {
 		case batch := <-w.writeCh:
-			w.handleWrite(batch)
+			w.service.handleWrite(batch)
 		case <-w.writeStop:
-			if w.client.Options().Debug > 1 {
+			if w.service.client.Options().Debug > 1 {
 				log.Println("I! Write proc: received stop")
 			}
 			break x
 		}
 	}
-	if w.client.Options().Debug > 1 {
+	if w.service.client.Options().Debug > 1 {
 		log.Println("I! Write proc finished")
 	}
 	w.doneCh <- 1
 }
 
-func (w *writeApiImpl) handleWrite(batch *batch) error {
+func (w *writeService) handleWrite(batch *batch) error {
 	if w.client.Options().Debug > 2 {
 		log.Println("D! Write proc: received write request")
 	}
@@ -259,8 +265,8 @@ func (w *writeApiImpl) close() {
 	//wait for write  and buffer proc
 }
 
-func (w *writeApiImpl) writeBatch(batch *batch) error {
-	url, err := w.writeUrl()
+func (w *writeService) writeBatch(batch *batch) error {
+	wUrl, err := w.writeUrl()
 	if err != nil {
 		log.Printf("E! %s\n", err.Error())
 		return err
@@ -277,7 +283,7 @@ func (w *writeApiImpl) writeBatch(batch *batch) error {
 		}
 	}
 	w.lastWriteAttempt = time.Now()
-	error := w.client.postRequest(url, body, func(req *http.Request) {
+	error := w.client.postRequest(wUrl, body, func(req *http.Request) {
 		if w.client.Options().UseGZip {
 			req.Header.Set("Content-Encoding", "gzip")
 		}
@@ -310,7 +316,16 @@ func (w *writeApiImpl) WriteRecord(line string) {
 }
 
 func (w *writeApiImpl) Write(point *Point) {
-	//w.bufferCh <- point.ToLineProtocol(w.client.Options().Precision)
+	//w.bufferCh <- point.ToLineProtocol(w.service.client.Options().Precision)
+	line, err := w.service.encodePoint(point)
+	if err != nil {
+		log.Printf("[E] point encoding error: %s\n", err.Error())
+	} else {
+		w.bufferCh <- line
+	}
+}
+
+func (w *writeService) encodePoint(point *Point) (string, error) {
 	var buffer bytes.Buffer
 	e := lp.NewEncoder(&buffer)
 	e.SetFieldTypeSupport(lp.UintSupport)
@@ -318,13 +333,12 @@ func (w *writeApiImpl) Write(point *Point) {
 	e.SetPrecision(w.client.Options().Precision)
 	_, err := e.Encode(point)
 	if err != nil {
-		log.Printf("[E] point encoding error: %s\n", err.Error())
-	} else {
-		w.bufferCh <- buffer.String()
+		return "", err
 	}
+	return buffer.String(), nil
 }
 
-func (w *writeApiImpl) writeUrl() (string, error) {
+func (w *writeService) writeUrl() (string, error) {
 	if w.url == "" {
 		u, err := url.Parse(w.client.ServerUrl())
 		if err != nil {
