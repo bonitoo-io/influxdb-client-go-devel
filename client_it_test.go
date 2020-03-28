@@ -94,7 +94,7 @@ func TestQueryRaw(t *testing.T) {
 		fmt.Println(result.Row())
 	}
 	if result.Err() != nil {
-		t.Error(err)
+		t.Error(result.Err())
 	}
 }
 
@@ -127,7 +127,7 @@ func TestQuery(t *testing.T) {
 
 func token() string {
 	if authToken == "" {
-		authToken = "i3EE29aNIQqWPFHzUUTzvp83gZiro1ZQuAXFlESch2dG_8YUUlDWqtKSxwdMu7xXtlBDo9e1UHZ976GCmJ4PFg=="
+		authToken = "JhUrBv7oRnUbYZ2s608sT2Wtu31UZhsD7DLU7bFX6tz-UYgPLetyJXI2EeO3gJaqx-LLa8ZAFHCbuzgjwNiUBQ=="
 	}
 	return authToken
 }
