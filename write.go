@@ -177,58 +177,11 @@ func (w *writeApiImpl) writeProc() {
 	if w.client.Options().Debug > 1 {
 		log.Println("I! Write proc started")
 	}
-	var err error
 x:
 	for {
 		select {
 		case batch := <-w.writeCh:
-			if w.client.Options().Debug > 2 {
-				log.Println("D! Write proc: received write request")
-			}
-			batchToWrite := batch
-			retrying := false
-			err = nil
-		r:
-			if !w.retryQueue.isEmpty() {
-				if w.client.Options().Debug > 2 {
-					log.Println("D! Write proc: taking batch from retry queue")
-				}
-				if !retrying {
-					b := w.retryQueue.first()
-					// Can we write? In case of retryable error we must wait a bit
-					if w.lastWriteAttempt.IsZero() || time.Now().After(w.lastWriteAttempt.Add(time.Second*time.Duration(b.retryInterval))) {
-						retrying = true
-					} else {
-						if w.client.Options().Debug > 0 {
-							log.Println("W! Write proc: cannot write yet, storing batch to queue")
-						}
-						w.retryQueue.push(batch)
-						batchToWrite = nil
-					}
-				}
-				if retrying {
-					batchToWrite = w.retryQueue.pop()
-					batchToWrite.retries++
-					if batch != nil {
-						if w.retryQueue.push(batch) {
-							if w.client.Options().Debug > 0 {
-								log.Println("W! Write proc: Retry buffer full, discarding oldest batch")
-							}
-						}
-						batch = nil
-					}
-				}
-			}
-			if batchToWrite != nil {
-				err = w.write(batchToWrite)
-				batchToWrite = nil
-				if err != nil {
-					retrying = false
-				} else {
-					goto r
-				}
-
-			}
+			w.handleWrite(batch)
 		case <-w.writeStop:
 			if w.client.Options().Debug > 1 {
 				log.Println("I! Write proc: received stop")
@@ -240,6 +193,56 @@ x:
 		log.Println("I! Write proc finished")
 	}
 	w.doneCh <- 1
+}
+
+func (w *writeApiImpl) handleWrite(batch *batch) error {
+	if w.client.Options().Debug > 2 {
+		log.Println("D! Write proc: received write request")
+	}
+	batchToWrite := batch
+	retrying := false
+	for {
+		if !w.retryQueue.isEmpty() {
+			if w.client.Options().Debug > 2 {
+				log.Println("D! Write proc: taking batch from retry queue")
+			}
+			if !retrying {
+				b := w.retryQueue.first()
+				// Can we write? In case of retryable error we must wait a bit
+				if w.lastWriteAttempt.IsZero() || time.Now().After(w.lastWriteAttempt.Add(time.Second*time.Duration(b.retryInterval))) {
+					retrying = true
+				} else {
+					if w.client.Options().Debug > 0 {
+						log.Println("W! Write proc: cannot write yet, storing batch to queue")
+					}
+					w.retryQueue.push(batch)
+					batchToWrite = nil
+				}
+			}
+			if retrying {
+				batchToWrite = w.retryQueue.pop()
+				batchToWrite.retries++
+				if batch != nil {
+					if w.retryQueue.push(batch) {
+						if w.client.Options().Debug > 0 {
+							log.Println("W! Write proc: Retry buffer full, discarding oldest batch")
+						}
+					}
+					batch = nil
+				}
+			}
+		}
+		if batchToWrite != nil {
+			err := w.writeBatch(batchToWrite)
+			batchToWrite = nil
+			if err != nil {
+				return err
+			}
+		} else {
+			break
+		}
+	}
+	return nil
 }
 
 func (w *writeApiImpl) close() {
@@ -256,7 +259,7 @@ func (w *writeApiImpl) close() {
 	//wait for write  and buffer proc
 }
 
-func (w *writeApiImpl) write(batch *batch) error {
+func (w *writeApiImpl) writeBatch(batch *batch) error {
 	url, err := w.writeUrl()
 	if err != nil {
 		log.Printf("E! %s\n", err.Error())
