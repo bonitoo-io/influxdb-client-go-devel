@@ -263,9 +263,3 @@ func TestQueue(t *testing.T) {
 	assert.Nil(t, que.pop())
 	assert.True(t, que.isEmpty())
 }
-
-func Test(t *testing.T) {
-	client := NewInfluxDBClientWithToken("http://localhost:8086", "")
-	_, err := client.Ready()
-	fmt.Println(err)
-}
