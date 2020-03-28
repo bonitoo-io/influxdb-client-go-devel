@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"container/list"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -12,8 +11,11 @@ import (
 	"time"
 
 	"github.com/bonitoo-io/influxdb-client-go/internal/gzip"
+	"github.com/bonitoo-io/influxdb-client-go/internal/log"
 	lp "github.com/influxdata/line-protocol"
 )
+
+var logger log.Logger
 
 type WriteApi interface {
 	WriteRecord(line string)
@@ -95,6 +97,7 @@ func (q *queue) isEmpty() bool {
 }
 
 func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApiImpl {
+	logger.SetDebugLevel(client.Options().Debug)
 	w := &writeApiImpl{
 		service:     newWriteService(org, bucket, client),
 		writeBuffer: make([]string, 0, client.Options().BatchSize+1),
@@ -121,24 +124,18 @@ func (w *writeApiImpl) Flush() {
 
 func (w *writeApiImpl) waitForFlushing() {
 	for len(w.writeBuffer) > 0 {
-		if w.service.client.Options().Debug > 1 {
-			log.Println("I! Waiting buffer is flushed")
-		}
+		logger.InfoLn("Waiting buffer is flushed")
 		time.Sleep(time.Millisecond)
 	}
 	for len(w.writeCh) > 0 {
-		if w.service.client.Options().Debug > 1 {
-			log.Println("I! Waiting buffer is written")
-		}
+		logger.InfoLn("Waiting buffer is written")
 		time.Sleep(time.Millisecond)
 	}
 	time.Sleep(time.Millisecond)
 }
 
 func (w *writeApiImpl) bufferProc() {
-	if w.service.client.Options().Debug > 1 {
-		log.Println("I! Buffer proc started")
-	}
+	logger.InfoLn("Buffer proc started")
 	ticker := time.NewTicker(time.Duration(w.service.client.Options().FlushInterval) * time.Millisecond)
 x:
 	for {
@@ -158,18 +155,14 @@ x:
 			break x
 		}
 	}
-	if w.service.client.Options().Debug > 1 {
-		log.Println("I! Buffer proc finished")
-	}
+	logger.InfoLn("Buffer proc finished")
 	w.doneCh <- 1
 }
 
 func (w *writeApiImpl) flushBuffer() {
 	if len(w.writeBuffer) > 0 {
 		//go func(lines []string) {
-		if w.service.client.Options().Debug > 1 {
-			log.Println("I! sending batch")
-		}
+		logger.InfoLn("sending batch")
 		batch := &batch{batch: buffer(w.writeBuffer)}
 		w.writeCh <- batch
 		//	lines = lines[:0]
@@ -180,47 +173,35 @@ func (w *writeApiImpl) flushBuffer() {
 }
 
 func (w *writeApiImpl) writeProc() {
-	if w.service.client.Options().Debug > 1 {
-		log.Println("I! Write proc started")
-	}
+	logger.InfoLn("Write proc started")
 x:
 	for {
 		select {
 		case batch := <-w.writeCh:
 			w.service.handleWrite(batch)
 		case <-w.writeStop:
-			if w.service.client.Options().Debug > 1 {
-				log.Println("I! Write proc: received stop")
-			}
+			logger.InfoLn("Write proc: received stop")
 			break x
 		}
 	}
-	if w.service.client.Options().Debug > 1 {
-		log.Println("I! Write proc finished")
-	}
+	logger.InfoLn("Write proc finished")
 	w.doneCh <- 1
 }
 
 func (w *writeService) handleWrite(batch *batch) error {
-	if w.client.Options().Debug > 2 {
-		log.Println("D! Write proc: received write request")
-	}
+	logger.DebugLn("Write proc: received write request")
 	batchToWrite := batch
 	retrying := false
 	for {
 		if !w.retryQueue.isEmpty() {
-			if w.client.Options().Debug > 2 {
-				log.Println("D! Write proc: taking batch from retry queue")
-			}
+			logger.DebugLn("Write proc: taking batch from retry queue")
 			if !retrying {
 				b := w.retryQueue.first()
 				// Can we write? In case of retryable error we must wait a bit
 				if w.lastWriteAttempt.IsZero() || time.Now().After(w.lastWriteAttempt.Add(time.Second*time.Duration(b.retryInterval))) {
 					retrying = true
 				} else {
-					if w.client.Options().Debug > 0 {
-						log.Println("W! Write proc: cannot write yet, storing batch to queue")
-					}
+					logger.WarnLn("Write proc: cannot write yet, storing batch to queue")
 					w.retryQueue.push(batch)
 					batchToWrite = nil
 				}
@@ -230,9 +211,7 @@ func (w *writeService) handleWrite(batch *batch) error {
 				batchToWrite.retries++
 				if batch != nil {
 					if w.retryQueue.push(batch) {
-						if w.client.Options().Debug > 0 {
-							log.Println("W! Write proc: Retry buffer full, discarding oldest batch")
-						}
+						logger.WarnLn("Write proc: Retry buffer full, discarding oldest batch")
 					}
 					batch = nil
 				}
@@ -268,14 +247,12 @@ func (w *writeApiImpl) close() {
 func (w *writeService) writeBatch(batch *batch) error {
 	wUrl, err := w.writeUrl()
 	if err != nil {
-		log.Printf("E! %s\n", err.Error())
+		logger.ErrorF("%s\n", err.Error())
 		return err
 	}
 	var body io.Reader
 	body = strings.NewReader(batch.batch)
-	if w.client.Options().Debug > 2 {
-		log.Printf("D! Writing batch: %s", batch.batch)
-	}
+	logger.DebugF("Writing batch: %s", batch.batch)
 	if w.client.Options().UseGZip {
 		body, err = gzip.CompressWithGzip(body, 6)
 		if err != nil {
@@ -290,17 +267,17 @@ func (w *writeService) writeBatch(batch *batch) error {
 	}, nil)
 	if error != nil {
 		if error.StatusCode == http.StatusTooManyRequests || error.StatusCode == http.StatusServiceUnavailable {
-			log.Printf("E! Write error: %s\nBatch kept for retrying\n", error.Error())
+			logger.ErrorF("Write error: %s\nBatch kept for retrying\n", error.Error())
 			if error.RetryAfter > 0 {
 				batch.retryInterval = error.RetryAfter
 			}
 			if batch.retries < w.client.Options().MaxRetries {
-				if w.retryQueue.push(batch) && w.client.Options().Debug > 0 {
-					log.Println("W! Retry buffer full, discarding oldest batch")
+				if w.retryQueue.push(batch) {
+					logger.WarnLn("Retry buffer full, discarding oldest batch")
 				}
 			}
 		} else {
-			log.Printf("E! Write error: %s\n", error.Error())
+			logger.ErrorF("Write error: %s\n", error.Error())
 		}
 		return error
 	} else {
@@ -319,7 +296,7 @@ func (w *writeApiImpl) Write(point *Point) {
 	//w.bufferCh <- point.ToLineProtocol(w.service.client.Options().Precision)
 	line, err := w.service.encodePoint(point)
 	if err != nil {
-		log.Printf("[E] point encoding error: %s\n", err.Error())
+		logger.ErrorF("point encoding error: %s\n", err.Error())
 	} else {
 		w.bufferCh <- line
 	}
