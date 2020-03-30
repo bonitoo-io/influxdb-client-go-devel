@@ -151,6 +151,12 @@ func (c *client) WriteAPI(org, bucket string) WriteApi {
 	c.writeApis = append(c.writeApis, w)
 	return w
 }
+
+func (c *client) WriteApiBlocking(org, bucket string) WriteApiBlocking {
+	w := newWriteApiBlockingImpl(org, bucket, c)
+	return w
+}
+
 func (c *client) Close() {
 	for _, w := range c.writeApis {
 		w.close()

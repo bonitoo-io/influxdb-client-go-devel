@@ -123,6 +123,21 @@ func genPoints(num int) []*Point {
 	return points
 }
 
+func genRecords(num int) []string {
+	lines := make([]string, num)
+	rand.Seed(321)
+
+	t := time.Now()
+	for i := 0; i < len(lines); i++ {
+		lines[i] = fmt.Sprintf("test,id=rack_%v,vendor=AWS,hostname=host_%v temperature=%v,disk_free=%v,disk_total=%vi,mem_total=%vi,mem_free=%vu %v",
+			i%10, i%100, rand.Float64()*80.0, rand.Float64()*1000.0, (i/10+1)*1000000, (i/100+1)*10000000, rand.Uint64(), t.UnixNano())
+		if i%10 == 0 {
+			t = t.Add(time.Second)
+		}
+	}
+	return lines
+}
+
 func TestWriteApiImpl_Write(t *testing.T) {
 	client := &testClient{
 		options: DefaultOptions(),
@@ -241,25 +256,4 @@ func TestRetry(t *testing.T) {
 	assert.True(t, strings.HasPrefix(client.lines[7], "test,hostname=host_7"))
 	assert.True(t, strings.HasPrefix(client.lines[14], "test,hostname=host_14"))
 	writeApi.close()
-}
-
-func TestQueue(t *testing.T) {
-	que := newQueue(2)
-	assert.True(t, que.isEmpty())
-	b := &batch{batch: "batch", retryInterval: 3, retries: 3}
-	que.push(b)
-	assert.False(t, que.isEmpty())
-	b2 := que.pop()
-	assert.Equal(t, b, b2)
-	assert.True(t, que.isEmpty())
-
-	que.push(b)
-	que.push(b)
-	assert.True(t, que.push(b))
-	assert.False(t, que.isEmpty())
-	que.pop()
-	que.pop()
-	assert.True(t, que.isEmpty())
-	assert.Nil(t, que.pop())
-	assert.True(t, que.isEmpty())
 }
