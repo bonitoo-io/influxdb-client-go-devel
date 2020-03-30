@@ -3,7 +3,9 @@ package client
 import (
 	"flag"
 	"fmt"
+	"strconv"
 	"testing"
+	"time"
 )
 
 var e2e bool
@@ -53,10 +55,20 @@ func TestWrite(t *testing.T) {
 	client.Options().Debug = 3
 	writeApi := client.WriteAPI("my-org", "my-bucket")
 	for i, f := 0, 3.3; i < 10; i++ {
-		writeApi.WriteRecord(fmt.Sprintf("test,a=%d,b=adsfasdf f=%.2f,i=%di", i%2, f, i))
+		writeApi.WriteRecord(fmt.Sprintf("test,a=%d,b=local f=%.2f,i=%di", i%2, f, i))
 		//writeApi.Flush()
 		f += 3.3
 	}
+
+	for i, f := int64(10), 33.0; i < 20; i++ {
+		p := NewPoint("test",
+			map[string]string{"a": strconv.FormatInt(i%2, 10), "b": "static"},
+			map[string]interface{}{"f": strconv.FormatFloat(f, 'f', 2, 64), "i": fmt.Sprintf("%di", i)},
+			time.Now())
+		writeApi.Write(p)
+		f += 3.3
+	}
+
 	client.Close()
 
 }
@@ -71,9 +83,10 @@ func TestQueryString(t *testing.T) {
 	res, err := queryApi.QueryString(`from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`)
 	if err != nil {
 		t.Error(err)
+	} else {
+		fmt.Println("QueryResult:")
+		fmt.Println(res)
 	}
-	fmt.Println("QueryResult:")
-	fmt.Println(res)
 }
 
 func TestQueryRaw(t *testing.T) {
@@ -87,15 +100,17 @@ func TestQueryRaw(t *testing.T) {
 	result, err := queryApi.QueryRaw(`from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")|> yield(name: "xxx")`)
 	if err != nil {
 		t.Error(err)
+	} else {
+		for i := 0; result.Next(); i++ {
+			fmt.Print(i)
+			fmt.Print(":")
+			fmt.Println(result.Row())
+		}
+		if result.Err() != nil {
+			t.Error(result.Err())
+		}
 	}
-	for i := 0; result.Next(); i++ {
-		fmt.Print(i)
-		fmt.Print(":")
-		fmt.Println(result.Row())
-	}
-	if result.Err() != nil {
-		t.Error(result.Err())
-	}
+
 }
 
 func TestQuery(t *testing.T) {
@@ -110,7 +125,6 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-
 		lastTable := -1
 		for result.Next() {
 			if lastTable != result.TableIndex() {
@@ -127,7 +141,7 @@ func TestQuery(t *testing.T) {
 
 func token() string {
 	if authToken == "" {
-		authToken = "JhUrBv7oRnUbYZ2s608sT2Wtu31UZhsD7DLU7bFX6tz-UYgPLetyJXI2EeO3gJaqx-LLa8ZAFHCbuzgjwNiUBQ=="
+		authToken = "Rr6euRmb47z0Egb3LjIr2feh7q_o3G8fGMFBwuEdhoVdQVWN16C-AUihf0yLDAknRu9B8eMFe27Y2xxUBzYamA=="
 	}
 	return authToken
 }
