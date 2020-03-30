@@ -11,11 +11,25 @@ import (
 	"net/http"
 	url2 "net/url"
 	"path"
+	"runtime"
 	"strconv"
 	"time"
 
 	"github.com/bonitoo-io/influxdb-client-go/domain"
 )
+
+const (
+	Version = "1.0.0"
+)
+
+var userAgentCache string
+
+func userAgent() string {
+	if userAgentCache == "" {
+		userAgentCache = fmt.Sprintf("influxdb-client-go/%s  (%s; %s)", Version, runtime.GOOS, runtime.GOARCH)
+	}
+	return userAgentCache
+}
 
 type Options struct {
 	// Maximum number of points sent to server in single request. Default 5000
@@ -140,6 +154,7 @@ func (c *client) Ready(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	req.Header.Set("User-Agent", userAgent())
 	resp, err := c.httpDoer.Do(req)
 	if err != nil {
 		return false, err
@@ -177,8 +192,8 @@ func (c *client) postRequest(ctx context.Context, url string, body io.Reader, re
 	if err != nil {
 		return NewError(err)
 	}
-	req.Header.Add("Authorization", c.authorization)
-	req.Header.Add("User-Agent", "InfluxDB Go Client")
+	req.Header.Set("Authorization", c.authorization)
+	req.Header.Set("User-Agent", userAgent())
 	if requestCallback != nil {
 		requestCallback(req)
 	}
