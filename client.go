@@ -72,7 +72,7 @@ func NewError(err error) *Error {
 
 // InfluxDBClient provides functions to communicate with InfluxDBServer
 type InfluxDBClient interface {
-	WriteAPI(org, bucket string) WriteApi
+	WriteApi(org, bucket string) WriteApi
 	WriteApiBlocking(org, bucket string) WriteApiBlocking
 	Close()
 	QueryAPI(org string) QueryApi
@@ -147,7 +147,7 @@ func (c *client) Ready() (bool, error) {
 	return resp.StatusCode == http.StatusOK, nil
 }
 
-func (c *client) WriteAPI(org, bucket string) WriteApi {
+func (c *client) WriteApi(org, bucket string) WriteApi {
 	w := newWriteApiImpl(org, bucket, c)
 	c.writeApis = append(c.writeApis, w)
 	return w

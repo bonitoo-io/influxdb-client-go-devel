@@ -53,7 +53,7 @@ func TestWrite(t *testing.T) {
 	}
 	client := NewInfluxDBClientWithToken("http://localhost:9999", token())
 	client.Options().Debug = 3
-	writeApi := client.WriteAPI("my-org", "my-bucket")
+	writeApi := client.WriteApi("my-org", "my-bucket")
 	for i, f := 0, 3.3; i < 10; i++ {
 		writeApi.WriteRecord(fmt.Sprintf("test,a=%d,b=local f=%.2f,i=%di", i%2, f, i))
 		//writeApi.Flush()

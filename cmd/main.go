@@ -69,9 +69,9 @@ func main() {
 		FlushInterval: 1000,
 	})
 	if *writerType == "points" {
-		writer = &WriterV2P{influx: influx, writeApi: influx.WriteAPI(InfluxDB2Org, InfluxDB2Bucket)}
+		writer = &WriterV2P{influx: influx, writeApi: influx.WriteApi(InfluxDB2Org, InfluxDB2Bucket)}
 	} else if *writerType == "lines" {
-		writer = &WriterV2R{influx: influx, writeApi: influx.WriteAPI(InfluxDB2Org, InfluxDB2Bucket)}
+		writer = &WriterV2R{influx: influx, writeApi: influx.WriteApi(InfluxDB2Org, InfluxDB2Bucket)}
 	} else {
 		fmt.Printf("unsupported client %s\n", *writerType)
 		return
