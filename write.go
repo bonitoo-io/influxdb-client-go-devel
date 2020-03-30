@@ -46,11 +46,11 @@ func (w *writeApiImpl) Flush() {
 
 func (w *writeApiImpl) waitForFlushing() {
 	for len(w.writeBuffer) > 0 {
-		logger.InfoLn("Waiting buffer is flushed")
+		logger.Info("Waiting buffer is flushed")
 		time.Sleep(time.Millisecond)
 	}
 	for len(w.writeCh) > 0 {
-		logger.InfoLn("Waiting buffer is written")
+		logger.Info("Waiting buffer is written")
 		time.Sleep(time.Millisecond)
 	}
 	//HACK: wait a bit till write finishes
@@ -58,7 +58,7 @@ func (w *writeApiImpl) waitForFlushing() {
 }
 
 func (w *writeApiImpl) bufferProc() {
-	logger.InfoLn("Buffer proc started")
+	logger.Info("Buffer proc started")
 	ticker := time.NewTicker(time.Duration(w.service.client.Options().FlushInterval) * time.Millisecond)
 x:
 	for {
@@ -78,14 +78,14 @@ x:
 			break x
 		}
 	}
-	logger.InfoLn("Buffer proc finished")
+	logger.Info("Buffer proc finished")
 	w.doneCh <- 1
 }
 
 func (w *writeApiImpl) flushBuffer() {
 	if len(w.writeBuffer) > 0 {
 		//go func(lines []string) {
-		logger.InfoLn("sending batch")
+		logger.Info("sending batch")
 		batch := &batch{batch: buffer(w.writeBuffer)}
 		w.writeCh <- batch
 		//	lines = lines[:0]
@@ -96,18 +96,18 @@ func (w *writeApiImpl) flushBuffer() {
 }
 
 func (w *writeApiImpl) writeProc() {
-	logger.InfoLn("Write proc started")
+	logger.Info("Write proc started")
 x:
 	for {
 		select {
 		case batch := <-w.writeCh:
 			w.service.handleWrite(batch)
 		case <-w.writeStop:
-			logger.InfoLn("Write proc: received stop")
+			logger.Info("Write proc: received stop")
 			break x
 		}
 	}
-	logger.InfoLn("Write proc finished")
+	logger.Info("Write proc finished")
 	w.doneCh <- 1
 }
 
@@ -135,7 +135,7 @@ func (w *writeApiImpl) Write(point *Point) {
 	//w.bufferCh <- point.ToLineProtocol(w.service.client.Options().Precision)
 	line, err := w.service.encodePoints(point)
 	if err != nil {
-		logger.ErrorF("point encoding error: %s\n", err.Error())
+		logger.Errorf("point encoding error: %s\n", err.Error())
 	} else {
 		w.bufferCh <- line
 	}

@@ -45,19 +45,19 @@ func buffer(lines []string) string {
 }
 
 func (w *writeService) handleWrite(batch *batch) error {
-	logger.DebugLn("Write proc: received write request")
+	logger.Debug("Write proc: received write request")
 	batchToWrite := batch
 	retrying := false
 	for {
 		if !w.retryQueue.isEmpty() {
-			logger.DebugLn("Write proc: taking batch from retry queue")
+			logger.Debug("Write proc: taking batch from retry queue")
 			if !retrying {
 				b := w.retryQueue.first()
 				// Can we write? In case of retryable error we must wait a bit
 				if w.lastWriteAttempt.IsZero() || time.Now().After(w.lastWriteAttempt.Add(time.Second*time.Duration(b.retryInterval))) {
 					retrying = true
 				} else {
-					logger.WarnLn("Write proc: cannot write yet, storing batch to queue")
+					logger.Warn("Write proc: cannot write yet, storing batch to queue")
 					w.retryQueue.push(batch)
 					batchToWrite = nil
 				}
@@ -67,7 +67,7 @@ func (w *writeService) handleWrite(batch *batch) error {
 				batchToWrite.retries++
 				if batch != nil {
 					if w.retryQueue.push(batch) {
-						logger.WarnLn("Write proc: Retry buffer full, discarding oldest batch")
+						logger.Warn("Write proc: Retry buffer full, discarding oldest batch")
 					}
 					batch = nil
 				}
@@ -89,12 +89,12 @@ func (w *writeService) handleWrite(batch *batch) error {
 func (w *writeService) writeBatch(batch *batch) error {
 	wUrl, err := w.writeUrl()
 	if err != nil {
-		logger.ErrorF("%s\n", err.Error())
+		logger.Errorf("%s\n", err.Error())
 		return err
 	}
 	var body io.Reader
 	body = strings.NewReader(batch.batch)
-	logger.DebugF("Writing batch: %s", batch.batch)
+	logger.Debugf("Writing batch: %s", batch.batch)
 	if w.client.Options().UseGZip {
 		body, err = gzip.CompressWithGzip(body, 6)
 		if err != nil {
@@ -109,7 +109,7 @@ func (w *writeService) writeBatch(batch *batch) error {
 	}, nil)
 	if error != nil {
 		if error.StatusCode == http.StatusTooManyRequests || error.StatusCode == http.StatusServiceUnavailable {
-			logger.ErrorF("Write error: %s\nBatch kept for retrying\n", error.Error())
+			logger.Errorf("Write error: %s\nBatch kept for retrying\n", error.Error())
 			if error.RetryAfter > 0 {
 				batch.retryInterval = error.RetryAfter
 			} else {
@@ -117,11 +117,11 @@ func (w *writeService) writeBatch(batch *batch) error {
 			}
 			if batch.retries < w.client.Options().MaxRetries {
 				if w.retryQueue.push(batch) {
-					logger.WarnLn("Retry buffer full, discarding oldest batch")
+					logger.Warn("Retry buffer full, discarding oldest batch")
 				}
 			}
 		} else {
-			logger.ErrorF("Write error: %s\n", error.Error())
+			logger.Errorf("Write error: %s\n", error.Error())
 		}
 		return error
 	} else {
