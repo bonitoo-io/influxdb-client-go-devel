@@ -73,6 +73,7 @@ func NewError(err error) *Error {
 // InfluxDBClient provides functions to communicate with InfluxDBServer
 type InfluxDBClient interface {
 	WriteAPI(org, bucket string) WriteApi
+	WriteApiBlocking(org, bucket string) WriteApiBlocking
 	Close()
 	QueryAPI(org string) QueryApi
 	postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error
