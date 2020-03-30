@@ -1,6 +1,10 @@
 package client
 
-import "time"
+import (
+	"context"
+	"strings"
+	"time"
+)
 
 type WriteApi interface {
 	WriteRecord(line string)
@@ -101,7 +105,7 @@ x:
 	for {
 		select {
 		case batch := <-w.writeCh:
-			w.service.handleWrite(batch)
+			w.service.handleWrite(context.Background(), batch)
 		case <-w.writeStop:
 			logger.Info("Write proc: received stop")
 			break x
@@ -139,4 +143,8 @@ func (w *writeApiImpl) Write(point *Point) {
 	} else {
 		w.bufferCh <- line
 	}
+}
+
+func buffer(lines []string) string {
+	return strings.Join(lines, "")
 }

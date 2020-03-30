@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -13,7 +14,7 @@ import (
 // It requires a client be set up with a username and password.
 // If successful will add a token to the client.
 // RetentionPeriodHrs of zero will result in infinite retention.
-func (c *client) Setup(username, password, org, bucket string) (*SetupResponse, error) {
+func (c *client) Setup(ctx context.Context, username, password, org, bucket string) (*SetupResponse, error) {
 	if username == "" || password == "" {
 		return nil, errors.New("a username and password is required for a setup")
 	}
@@ -30,7 +31,7 @@ func (c *client) Setup(username, password, org, bucket string) (*SetupResponse, 
 	if c.options.Debug > 2 {
 		log.Printf("D! Request:\n%s\n", string(inputData))
 	}
-	error := c.postRequest(c.serverUrl+"/api/v2/setup", bytes.NewReader(inputData), func(req *http.Request) {
+	error := c.postRequest(ctx, c.serverUrl+"/api/v2/setup", bytes.NewReader(inputData), func(req *http.Request) {
 		req.Header.Add("Content-Type", "application/json; charset=utf-8")
 	},
 		func(resp *http.Response) error {

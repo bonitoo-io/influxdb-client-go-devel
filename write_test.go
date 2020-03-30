@@ -2,6 +2,7 @@ package client
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,11 @@ type testClient struct {
 	replyError     *Error
 }
 
-func (t *testClient) WriteAPI(org, bucket string) WriteApi {
+func (t *testClient) WriteApiBlocking(org, bucket string) WriteApiBlocking {
+	return nil
+}
+
+func (t *testClient) WriteApi(org, bucket string) WriteApi {
 	return nil
 }
 
@@ -40,7 +45,7 @@ func (t *testClient) QueryAPI(org string) QueryApi {
 	return nil
 }
 
-func (t *testClient) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error {
+func (t *testClient) postRequest(ctx context.Context, url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error {
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		return NewError(err)
@@ -88,10 +93,10 @@ func (t *testClient) ServerUrl() string {
 	return "http://locahost:8900"
 }
 
-func (t *testClient) Setup(username, password, org, bucket string) (*SetupResponse, error) {
+func (t *testClient) Setup(ctx context.Context, username, password, org, bucket string) (*SetupResponse, error) {
 	return nil, nil
 }
-func (t *testClient) Ready() (bool, error) {
+func (t *testClient) Ready(ctx context.Context) (bool, error) {
 	return true, nil
 }
 

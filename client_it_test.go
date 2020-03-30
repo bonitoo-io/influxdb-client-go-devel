@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"strconv"
@@ -20,7 +21,7 @@ func TestReady(t *testing.T) {
 	}
 	client := NewInfluxDBClientWithToken("http://localhost:9999", "my-token-123")
 
-	ok, err := client.Ready()
+	ok, err := client.Ready(context.Background())
 	if err != nil {
 		t.Error(err)
 	}
@@ -37,7 +38,7 @@ func TestSetup(t *testing.T) {
 	}
 	client := NewInfluxDBClientEmpty("http://localhost:9999")
 	client.Options().Debug = 2
-	response, err := client.Setup("my-user", "my-password", "my-org", "my-bucket")
+	response, err := client.Setup(context.Background(), "my-user", "my-password", "my-org", "my-bucket")
 	if err != nil {
 		t.Error(err)
 	}
@@ -80,7 +81,7 @@ func TestQueryString(t *testing.T) {
 	client := NewInfluxDBClientWithToken("http://localhost:9999", token())
 
 	queryApi := client.QueryAPI("my-org")
-	res, err := queryApi.QueryString(`from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`)
+	res, err := queryApi.QueryString(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`)
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -97,7 +98,7 @@ func TestQueryRaw(t *testing.T) {
 
 	queryApi := client.QueryAPI("my-org")
 	fmt.Println("QueryResult")
-	result, err := queryApi.QueryRaw(`from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")|> yield(name: "xxx")`)
+	result, err := queryApi.QueryRaw(context.Background(), `from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")|> yield(name: "xxx")`)
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -121,7 +122,7 @@ func TestQuery(t *testing.T) {
 
 	queryApi := client.QueryAPI("my-org")
 	fmt.Println("QueryResult")
-	result, err := queryApi.Query(`from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")`)
+	result, err := queryApi.Query(context.Background(), `from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")`)
 	if err != nil {
 		t.Error(err)
 	} else {

@@ -1,9 +1,12 @@
 package client
 
 import (
+	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestWritePoint(t *testing.T) {
@@ -14,7 +17,7 @@ func TestWritePoint(t *testing.T) {
 	client.options.BatchSize = 5
 	writeApi := newWriteApiBlockingImpl("my-org", "my-bucket", client)
 	points := genPoints(10)
-	err := writeApi.WritePoint(points...)
+	err := writeApi.WritePoint(context.Background(), points...)
 	require.Nil(t, err)
 	require.Len(t, client.lines, 10)
 	for i, p := range points {
@@ -33,7 +36,7 @@ func TestWriteRecord(t *testing.T) {
 	client.options.BatchSize = 5
 	writeApi := newWriteApiBlockingImpl("my-org", "my-bucket", client)
 	lines := genRecords(10)
-	err := writeApi.WriteRecord(lines...)
+	err := writeApi.WriteRecord(context.Background(), lines...)
 	require.Nil(t, err)
 	require.Len(t, client.lines, 10)
 	for i, l := range lines {
@@ -41,12 +44,35 @@ func TestWriteRecord(t *testing.T) {
 	}
 	client.Close()
 
-	err = writeApi.WriteRecord()
+	err = writeApi.WriteRecord(context.Background())
 	require.Nil(t, err)
 	require.Len(t, client.lines, 0)
 
 	client.replyError = &Error{Code: "invalid", Message: "data"}
-	err = writeApi.WriteRecord(lines...)
+	err = writeApi.WriteRecord(context.Background(), lines...)
 	require.NotNil(t, err)
 	require.Equal(t, "invalid: data", err.Error())
+}
+
+func TestWriteContextCancel(t *testing.T) {
+	client := &testClient{
+		options: DefaultOptions(),
+		t:       t,
+	}
+	client.options.BatchSize = 5
+	writeApi := newWriteApiBlockingImpl("my-org", "my-bucket", client)
+	lines := genRecords(10)
+	ctx, cancel := context.WithCancel(context.Background())
+	var err error
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		time.Sleep(time.Second)
+		err = writeApi.WriteRecord(ctx, lines...)
+		wg.Done()
+	}()
+	cancel()
+	wg.Wait()
+	require.Equal(t, context.Canceled, err)
+	assert.Len(t, client.lines, 0)
 }

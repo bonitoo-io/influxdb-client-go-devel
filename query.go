@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -32,9 +33,9 @@ const (
 )
 
 type QueryApi interface {
-	QueryString(query string) (string, error)
-	QueryRaw(query string) (*QueryRawResult, error)
-	Query(query string) (*QueryCSVResult, error)
+	QueryString(ctx context.Context, query string) (string, error)
+	QueryRaw(ctx context.Context, query string) (*QueryRawResult, error)
+	Query(ctx context.Context, query string) (*QueryCSVResult, error)
 }
 
 type QueryApiImpl struct {
@@ -58,13 +59,13 @@ type dialect struct {
 	Header         bool     `json:"header"`
 }
 
-func (q *QueryApiImpl) QueryString(query string) (string, error) {
+func (q *QueryApiImpl) QueryString(ctx context.Context, query string) (string, error) {
 	queryUrl, err := q.queryUrl()
 	if err != nil {
 		return "", err
 	}
 	var body string
-	error := q.client.postRequest(queryUrl, strings.NewReader(query), func(req *http.Request) {
+	error := q.client.postRequest(ctx, queryUrl, strings.NewReader(query), func(req *http.Request) {
 		req.Header.Add("Content-Type", "application/vnd.flux")
 	},
 		func(resp *http.Response) error {
@@ -81,7 +82,7 @@ func (q *QueryApiImpl) QueryString(query string) (string, error) {
 	return body, nil
 }
 
-func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
+func (q *QueryApiImpl) QueryRaw(ctx context.Context, query string) (*QueryRawResult, error) {
 	var queryResult *QueryRawResult
 	queryUrl, err := q.queryUrl()
 	if err != nil {
@@ -96,7 +97,7 @@ func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	error := q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
+	error := q.client.postRequest(ctx, queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
 	},
 		func(resp *http.Response) error {
@@ -110,7 +111,7 @@ func (q *QueryApiImpl) QueryRaw(query string) (*QueryRawResult, error) {
 	return queryResult, nil
 }
 
-func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
+func (q *QueryApiImpl) Query(ctx context.Context, query string) (*QueryCSVResult, error) {
 	var queryResult *QueryCSVResult
 	queryUrl, err := q.queryUrl()
 	if err != nil {
@@ -125,7 +126,7 @@ func (q *QueryApiImpl) Query(query string) (*QueryCSVResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	error := q.client.postRequest(queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
+	error := q.client.postRequest(ctx, queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept-Encoding", "gzip")
 	},

@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -40,15 +41,17 @@ func newWriteService(org string, bucket string, client InfluxDBClient) *writeSer
 	return &writeService{org: org, bucket: bucket, client: client, retryQueue: newQueue(int(retryBufferLimit))}
 }
 
-func buffer(lines []string) string {
-	return strings.Join(lines, "")
-}
-
-func (w *writeService) handleWrite(batch *batch) error {
+func (w *writeService) handleWrite(ctx context.Context, batch *batch) error {
 	logger.Debug("Write proc: received write request")
 	batchToWrite := batch
 	retrying := false
 	for {
+		select {
+		case <-ctx.Done():
+			logger.Debug("Write proc: ctx cancelled req")
+			return ctx.Err()
+		default:
+		}
 		if !w.retryQueue.isEmpty() {
 			logger.Debug("Write proc: taking batch from retry queue")
 			if !retrying {
@@ -74,7 +77,7 @@ func (w *writeService) handleWrite(batch *batch) error {
 			}
 		}
 		if batchToWrite != nil {
-			err := w.writeBatch(batchToWrite)
+			err := w.writeBatch(ctx, batchToWrite)
 			batchToWrite = nil
 			if err != nil {
 				return err
@@ -86,7 +89,7 @@ func (w *writeService) handleWrite(batch *batch) error {
 	return nil
 }
 
-func (w *writeService) writeBatch(batch *batch) error {
+func (w *writeService) writeBatch(ctx context.Context, batch *batch) error {
 	wUrl, err := w.writeUrl()
 	if err != nil {
 		logger.Errorf("%s\n", err.Error())
@@ -102,7 +105,7 @@ func (w *writeService) writeBatch(batch *batch) error {
 		}
 	}
 	w.lastWriteAttempt = time.Now()
-	error := w.client.postRequest(wUrl, body, func(req *http.Request) {
+	error := w.client.postRequest(ctx, wUrl, body, func(req *http.Request) {
 		if w.client.Options().UseGZip {
 			req.Header.Set("Content-Encoding", "gzip")
 		}

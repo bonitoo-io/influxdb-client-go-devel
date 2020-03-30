@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,7 +38,7 @@ type Options struct {
 	UseGZip bool
 }
 
-// Options with default values
+// DefaultOptions returns Options object with default values
 // TODO: singleton?
 func DefaultOptions() *Options {
 	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: time.Nanosecond, UseGZip: false, RetryBufferLimit: 10000}
@@ -76,11 +77,11 @@ type InfluxDBClient interface {
 	WriteApiBlocking(org, bucket string) WriteApiBlocking
 	Close()
 	QueryAPI(org string) QueryApi
-	postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error
+	postRequest(ctx context.Context, url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error
 	Options() *Options
 	ServerUrl() string
-	Setup(username, password, org, bucket string) (*SetupResponse, error)
-	Ready() (bool, error)
+	Setup(ctx context.Context, username, password, org, bucket string) (*SetupResponse, error)
+	Ready(ctx context.Context) (bool, error)
 }
 
 type client struct {
@@ -129,13 +130,13 @@ func (c *client) ServerUrl() string {
 	return c.serverUrl
 }
 
-func (c *client) Ready() (bool, error) {
+func (c *client) Ready(ctx context.Context) (bool, error) {
 	url, err := url2.Parse(c.serverUrl)
 	if err != nil {
 		return false, err
 	}
 	url.Path = path.Join(url.Path, "ready")
-	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
 		return false, err
 	}
@@ -171,8 +172,8 @@ func (c *client) QueryAPI(org string) QueryApi {
 	}
 }
 
-func (c *client) postRequest(url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error {
-	req, err := http.NewRequest(http.MethodPost, url, body)
+func (c *client) postRequest(ctx context.Context, url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return NewError(err)
 	}
