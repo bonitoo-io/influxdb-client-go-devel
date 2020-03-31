@@ -8,6 +8,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"strconv"
 	"testing"
 	"time"
@@ -46,11 +48,13 @@ func TestSetup(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if response != nil {
-		authToken = response.Auth.Token
-		fmt.Println("Token:" + authToken)
-	}
+	require.NotNil(t, response)
+	authToken = *response.Auth.Token
+	fmt.Println("Token:" + authToken)
 
+	response, err = client.Setup(context.Background(), "my-user", "my-password", "my-org", "my-bucket")
+	require.NotNil(t, err)
+	assert.Equal(t, "conflict: onboarding has already been completed", err.Error())
 }
 func TestWrite(t *testing.T) {
 	if !e2e {

@@ -8,6 +8,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"github.com/bonitoo-io/influxdb-client-go/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -97,7 +98,7 @@ func (t *testClient) ServerUrl() string {
 	return "http://locahost:8900"
 }
 
-func (t *testClient) Setup(ctx context.Context, username, password, org, bucket string) (*SetupResponse, error) {
+func (t *testClient) Setup(ctx context.Context, username, password, org, bucket string) (*domain.OnboardingResponse, error) {
 	return nil, nil
 }
 func (t *testClient) Ready(ctx context.Context) (bool, error) {

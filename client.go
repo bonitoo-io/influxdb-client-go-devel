@@ -19,6 +19,7 @@ import (
 	"path"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/bonitoo-io/influxdb-client-go/domain"
@@ -112,7 +113,7 @@ type InfluxDBClient interface {
 	ServerUrl() string
 	// Setup sends request to initialise new InfluxDB server with user, org and bucket
 	// and returns details about newly created entities along with the authorization object
-	Setup(ctx context.Context, username, password, org, bucket string) (*SetupResponse, error)
+	Setup(ctx context.Context, username, password, org, bucket string) (*domain.OnboardingResponse, error)
 	// Ready checks InfluxDB server is running
 	Ready(ctx context.Context) (bool, error)
 	// Internal  method for handling posts
@@ -126,6 +127,7 @@ type client struct {
 	options       Options
 	writeApis     []WriteApi
 	httpDoer      domain.HttpRequestDoer
+	lock          sync.Mutex
 }
 
 // Http operation callbacks
