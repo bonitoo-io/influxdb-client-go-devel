@@ -24,6 +24,8 @@ type WriteApi interface {
 	Flush()
 	// Flushes all pending writes and stop async processes. After this the Write client cannot be used
 	Close()
+	// Errors return channel for reading errors which occurs during async writes
+	Errors() <-chan error
 }
 
 type writeApiImpl struct {
@@ -37,6 +39,7 @@ type writeApiImpl struct {
 	bufferStop  chan int
 	bufferFlush chan int
 	doneCh      chan int
+	errCh       chan error
 }
 
 func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApiImpl {
@@ -54,6 +57,13 @@ func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApi
 	go w.writeProc()
 
 	return w
+}
+
+func (w *writeApiImpl) Errors() <-chan error {
+	if w.errCh == nil {
+		w.errCh = make(chan error)
+	}
+	return w.errCh
 }
 
 func (w *writeApiImpl) Flush() {
@@ -118,7 +128,10 @@ x:
 	for {
 		select {
 		case batch := <-w.writeCh:
-			w.service.handleWrite(context.Background(), batch)
+			err := w.service.handleWrite(context.Background(), batch)
+			if w.errCh != nil && err != nil {
+				w.errCh <- err
+			}
 		case <-w.writeStop:
 			logger.Info("Write proc: received stop")
 			break x

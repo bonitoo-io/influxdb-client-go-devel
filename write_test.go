@@ -267,3 +267,32 @@ func TestRetry(t *testing.T) {
 	assert.True(t, strings.HasPrefix(client.lines[14], "test,hostname=host_14"))
 	writeApi.Close()
 }
+
+func TestWriteError(t *testing.T) {
+	client := &testClient{
+		options: DefaultOptions(),
+		t:       t,
+	}
+	client.options.Debug = 3
+	client.options.BatchSize = 5
+	client.replyError = &Error{
+		StatusCode: 400,
+		Code:       "write",
+		Message:    "error",
+	}
+	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
+	errCh := writeApi.Errors()
+	var recErr error
+
+	go func() {
+		recErr = <-errCh
+	}()
+	points := genPoints(15)
+	for i := 0; i < 5; i++ {
+		writeApi.WritePoint(points[i])
+	}
+	writeApi.waitForFlushing()
+	require.NotNil(t, recErr)
+
+	client.Close()
+}
