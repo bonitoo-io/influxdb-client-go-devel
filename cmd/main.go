@@ -162,7 +162,7 @@ func (w *WriterV2R) Count(measurementName string) (int, error) {
 		|> drop(columns: ["id", "host"])
 		|> count(column: "temperature")`
 
-	queryApi := w.influx.QueryAPI(InfluxDB2Org)
+	queryApi := w.influx.QueryApi(InfluxDB2Org)
 	queryResult, err := queryApi.Query(context.Background(), query)
 	if err != nil {
 		return 0, err
@@ -202,7 +202,7 @@ func (w *WriterV2P) Count(measurementName string) (int, error) {
 		|> drop(columns: ["id", "host"])
 		|> count(column: "temperature")`
 
-	queryApi := w.influx.QueryAPI(InfluxDB2Org)
+	queryApi := w.influx.QueryApi(InfluxDB2Org)
 	queryResult, err := queryApi.Query(context.Background(), query)
 	if err != nil {
 		return 0, err

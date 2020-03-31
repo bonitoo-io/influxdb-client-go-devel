@@ -88,7 +88,7 @@ func TestQueryString(t *testing.T) {
 	}
 	client := NewClient("http://localhost:9999", token())
 
-	queryApi := client.QueryAPI("my-org")
+	queryApi := client.QueryApi("my-org")
 	res, err := queryApi.QueryString(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`)
 	if err != nil {
 		t.Error(err)
@@ -104,7 +104,7 @@ func TestQueryRaw(t *testing.T) {
 	}
 	client := NewClient("http://localhost:9999", token())
 
-	queryApi := client.QueryAPI("my-org")
+	queryApi := client.QueryApi("my-org")
 	fmt.Println("QueryResult")
 	result, err := queryApi.QueryRaw(context.Background(), `from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")|> yield(name: "xxx")`)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestQuery(t *testing.T) {
 	}
 	client := NewClient("http://localhost:9999", token())
 
-	queryApi := client.QueryAPI("my-org")
+	queryApi := client.QueryApi("my-org")
 	fmt.Println("QueryResult")
 	result, err := queryApi.Query(context.Background(), `from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")`)
 	if err != nil {

@@ -34,8 +34,8 @@ type InfluxDBClient interface {
 	WriteApi(org, bucket string) WriteApi
 	// WriteApi returns the synchronous, blocking, Write client.
 	WriteApiBlocking(org, bucket string) WriteApiBlocking
-	// QueryAPI returns Query client
-	QueryAPI(org string) QueryApi
+	// QueryApi returns Query client
+	QueryApi(org string) QueryApi
 	// Close ensures all ongoing asynchronous write clients finish
 	Close()
 	// Options returns the options associated with client
@@ -139,7 +139,7 @@ func (c *client) Close() {
 	}
 }
 
-func (c *client) QueryAPI(org string) QueryApi {
+func (c *client) QueryApi(org string) QueryApi {
 	return &queryApiImpl{
 		org:    org,
 		client: c,

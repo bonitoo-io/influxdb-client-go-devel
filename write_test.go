@@ -46,7 +46,7 @@ func (t *testClient) Close() {
 	t.requestHandler = nil
 }
 
-func (t *testClient) QueryAPI(org string) QueryApi {
+func (t *testClient) QueryApi(org string) QueryApi {
 	return nil
 }
 
