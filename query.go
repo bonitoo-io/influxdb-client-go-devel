@@ -20,6 +20,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bonitoo-io/influxdb-client-go/domain"
@@ -50,6 +51,7 @@ type queryApiImpl struct {
 	org    string
 	client InfluxDBClient
 	url    string
+	lock   sync.Mutex
 }
 
 func (q *queryApiImpl) QueryRaw(ctx context.Context, query string, dialect *domain.Dialect) (string, error) {
@@ -145,7 +147,9 @@ func (q *queryApiImpl) queryUrl() (string, error) {
 		params := u.Query()
 		params.Set("org", q.org)
 		u.RawQuery = params.Encode()
+		q.lock.Lock()
 		q.url = u.String()
+		q.lock.Unlock()
 	}
 	return q.url, nil
 }
