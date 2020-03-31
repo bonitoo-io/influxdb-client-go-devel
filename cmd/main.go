@@ -65,7 +65,7 @@ func main() {
 	var writer Writer
 	influx := clientb.NewClientWithOptions(InfluxDB2Url, *token, clientb.Options{
 		BatchSize:     5000,
-		Debug:         *debugLevel,
+		DebugLevel:    *debugLevel,
 		RetryInterval: 1000,
 		FlushInterval: 1000,
 	})

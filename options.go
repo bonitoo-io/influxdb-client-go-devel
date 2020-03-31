@@ -19,7 +19,7 @@ type Options struct {
 	// Maximum number of points to keep for retry. Should be multiple of BatchSize. Default 10,000
 	RetryBufferLimit uint
 	// DebugLevel to filter log messages. Each level mean to log all categories bellow. 0 error, 1 - warning, 2 - info, 3 - debug
-	Debug uint
+	DebugLevel uint
 	// Precision to use in writes for timestamp. In unit of duration: time.Nanosecond, time.Microsecond, time.Millisecond, time.Second
 	// Default time.Nanosecond
 	Precision time.Duration

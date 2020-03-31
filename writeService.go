@@ -39,7 +39,7 @@ type writeService struct {
 }
 
 func newWriteService(org string, bucket string, client InfluxDBClient) *writeService {
-	logger.SetDebugLevel(client.Options().Debug)
+	logger.SetDebugLevel(client.Options().DebugLevel)
 	retryBufferLimit := client.Options().RetryBufferLimit / client.Options().BatchSize
 	if retryBufferLimit == 0 {
 		retryBufferLimit = 1

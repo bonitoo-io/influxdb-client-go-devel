@@ -231,7 +231,7 @@ func TestRetry(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.Debug = 3
+	client.options.DebugLevel = 3
 	client.options.BatchSize = 5
 	client.options.RetryInterval = 10000
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
@@ -273,7 +273,7 @@ func TestWriteError(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.Debug = 3
+	client.options.DebugLevel = 3
 	client.options.BatchSize = 5
 	client.replyError = &Error{
 		StatusCode: 400,
