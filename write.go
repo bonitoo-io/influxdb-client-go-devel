@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// WriteApiBlocking offers non-blocking methods for writing time series data asynchronously in batches into an InfluxDB server.
+// WriteApiBlocking is Write client interface with non-blocking methods for writing time series data asynchronously in batches into an InfluxDB server.
 type WriteApi interface {
 	// WriteRecord writes asynchronously line protocol record into bucket.
 	// WriteRecord adds record into the buffer which is sent on the background when it reaches the batch size.
@@ -22,8 +22,8 @@ type WriteApi interface {
 	WritePoint(point *Point)
 	// Flush forces all pending writes from the buffer to be sent
 	Flush()
-	// Flushes all pending writes and stop async processes
-	close()
+	// Flushes all pending writes and stop async processes. After this the Write client cannot be used
+	Close()
 }
 
 type writeApiImpl struct {
@@ -128,7 +128,7 @@ x:
 	w.doneCh <- 1
 }
 
-func (w *writeApiImpl) close() {
+func (w *writeApiImpl) Close() {
 	// Flush outstanding metrics
 	w.Flush()
 	w.bufferStop <- 1

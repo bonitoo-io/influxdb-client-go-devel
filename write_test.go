@@ -159,7 +159,7 @@ func TestWriteApiImpl_Write(t *testing.T) {
 	for _, p := range points {
 		writeApi.WritePoint(p)
 	}
-	writeApi.close()
+	writeApi.Close()
 	require.Len(t, client.lines, 10)
 	for i, p := range points {
 		line := p.ToLineProtocol(client.options.Precision)
@@ -194,7 +194,7 @@ func TestGzipWithFlushing(t *testing.T) {
 	require.Len(t, client.lines, 5)
 	assert.False(t, client.wasGzip)
 
-	writeApi.close()
+	writeApi.Close()
 }
 func TestFlushInterval(t *testing.T) {
 	client := &testClient{
@@ -211,7 +211,7 @@ func TestFlushInterval(t *testing.T) {
 	require.Len(t, client.lines, 0)
 	time.Sleep(time.Millisecond * 600)
 	require.Len(t, client.lines, 5)
-	writeApi.close()
+	writeApi.Close()
 
 	client.Close()
 	client.options.FlushInterval = 2000
@@ -223,7 +223,7 @@ func TestFlushInterval(t *testing.T) {
 	time.Sleep(time.Millisecond * 2100)
 	require.Len(t, client.lines, 5)
 
-	writeApi.close()
+	writeApi.Close()
 }
 
 func TestRetry(t *testing.T) {
@@ -265,5 +265,5 @@ func TestRetry(t *testing.T) {
 	require.Len(t, client.lines, 15)
 	assert.True(t, strings.HasPrefix(client.lines[7], "test,hostname=host_7"))
 	assert.True(t, strings.HasPrefix(client.lines[14], "test,hostname=host_14"))
-	writeApi.close()
+	writeApi.Close()
 }

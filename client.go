@@ -135,7 +135,7 @@ func (c *client) WriteApiBlocking(org, bucket string) WriteApiBlocking {
 
 func (c *client) Close() {
 	for _, w := range c.writeApis {
-		w.close()
+		w.Close()
 	}
 }
 
