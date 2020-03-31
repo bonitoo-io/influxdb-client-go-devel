@@ -25,47 +25,6 @@ import (
 	"github.com/bonitoo-io/influxdb-client-go/domain"
 )
 
-const (
-	Version = "1.0.0"
-)
-
-// Keeps once created User-Agent string
-var userAgentCache string
-
-// userAgent does lazy user-agent string initialisation
-func userAgent() string {
-	if userAgentCache == "" {
-		userAgentCache = fmt.Sprintf("influxdb-client-go/%s  (%s; %s)", Version, runtime.GOOS, runtime.GOARCH)
-	}
-	return userAgentCache
-}
-
-// Options holds configuration properties for communicating with InfluxDB server
-type Options struct {
-	// Maximum number of points sent to server in single request. Default 1000
-	BatchSize uint
-	// Interval, in ms, in which is buffer flushed if it has not been already written (by reaching batch size) . Default 1000ms
-	FlushInterval uint
-	// Default retry interval in ms, if not sent by server. Default 30s
-	RetryInterval uint
-	// Maximum count of retry attempts of failed writes
-	MaxRetries uint
-	// Maximum number of points to keep for retry. Should be multiple of BatchSize. Default 10,000
-	RetryBufferLimit uint
-	// DebugLevel to filter log messages. Each level mean to log all categories bellow. 0 error, 1 - warning, 2 - info, 3 - debug
-	Debug uint
-	// Precision to use in writes for timestamp. In unit of duration: time.Nanosecond, time.Microsecond, time.Millisecond, time.Second
-	// Default time.Nanosecond
-	Precision time.Duration
-	// Whether to use GZip compression in requests. Default false
-	UseGZip bool
-}
-
-// DefaultOptions returns Options object with default values
-func DefaultOptions() *Options {
-	return &Options{BatchSize: 1000, MaxRetries: 3, RetryInterval: 1000, FlushInterval: 1000, Precision: time.Nanosecond, UseGZip: false, RetryBufferLimit: 10000}
-}
-
 // InfluxDBClient provides API to communicate with InfluxDBServer
 // There two APIs for writing, WriteApi and WriteApiBlocking.
 // WriteApi provides asynchronous, non-blocking, methods for writing time series data.
@@ -258,30 +217,13 @@ func (c *client) handleHttpError(r *http.Response) *Error {
 	return error
 }
 
-// Error represent error response from InfluxDBServer or http error
-type Error struct {
-	StatusCode int
-	Code       string
-	Message    string
-	Err        error
-	RetryAfter uint
-}
+// Keeps once created User-Agent string
+var userAgentCache string
 
-// Error fulfils error interface
-func (e *Error) Error() string {
-	if e.Err != nil {
-		return e.Err.Error()
+// userAgent does lazy user-agent string initialisation
+func userAgent() string {
+	if userAgentCache == "" {
+		userAgentCache = fmt.Sprintf("influxdb-client-go/%s  (%s; %s)", Version, runtime.GOOS, runtime.GOARCH)
 	}
-	return fmt.Sprintf("%s: %s", e.Code, e.Message)
-}
-
-// NewError returns newly created Error initialised with nested error and default values
-func NewError(err error) *Error {
-	return &Error{
-		StatusCode: 0,
-		Code:       "",
-		Message:    "",
-		Err:        err,
-		RetryAfter: 0,
-	}
+	return userAgentCache
 }
