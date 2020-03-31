@@ -81,16 +81,18 @@ func TestQueryCVSResultSingleTable(t *testing.T) {
 	reader := strings.NewReader(csvTable)
 	csvReader := csv.NewReader(reader)
 	csvReader.FieldsPerRecord = -1
-	queryResult := &QueryCSVResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
+	queryResult := &QueryTableResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
 	require.Equal(t, queryResult.table, expectedTable)
+	assert.True(t, queryResult.tableChanged)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord1)
 
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
+	assert.False(t, queryResult.tableChanged)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord2)
 
@@ -303,23 +305,26 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	reader := strings.NewReader(csvTable)
 	csvReader := csv.NewReader(reader)
 	csvReader.FieldsPerRecord = -1
-	queryResult := &QueryCSVResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
+	queryResult := &QueryTableResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
 	require.Equal(t, queryResult.TableMetadata(), expectedTable1)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord11)
+	assert.True(t, queryResult.tableChanged)
 
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 	require.Equal(t, queryResult.TableMetadata(), expectedTable1)
+	assert.False(t, queryResult.tableChanged)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord12)
 
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
+	assert.True(t, queryResult.tableChanged)
 	require.Equal(t, queryResult.table, expectedTable2)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord21)
@@ -327,6 +332,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
+	assert.False(t, queryResult.tableChanged)
 	require.Equal(t, queryResult.table, expectedTable2)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord22)
@@ -334,6 +340,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err(), queryResult.Err())
 
+	assert.True(t, queryResult.tableChanged)
 	require.Equal(t, queryResult.table, expectedTable3)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord31)
@@ -341,6 +348,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
+	assert.False(t, queryResult.tableChanged)
 	require.Equal(t, queryResult.table, expectedTable3)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord32)
@@ -348,6 +356,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
+	assert.True(t, queryResult.tableChanged)
 	require.Equal(t, queryResult.table, expectedTable4)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord41)
@@ -355,6 +364,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
+	assert.False(t, queryResult.tableChanged)
 	require.Equal(t, queryResult.table, expectedTable4)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord42)
@@ -404,7 +414,7 @@ func TestErrorInRow(t *testing.T) {
 	reader := strings.NewReader(csvTable)
 	csvReader := csv.NewReader(reader)
 	csvReader.FieldsPerRecord = -1
-	queryResult := &QueryCSVResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
+	queryResult := &QueryTableResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
 
 	require.False(t, queryResult.Next())
 	require.NotNil(t, queryResult.Err())
@@ -420,7 +430,7 @@ func TestErrorInRow(t *testing.T) {
 	reader = strings.NewReader(csvTable)
 	csvReader = csv.NewReader(reader)
 	csvReader.FieldsPerRecord = -1
-	queryResult = &QueryCSVResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
+	queryResult = &QueryTableResult{Closer: ioutil.NopCloser(reader), csvReader: csvReader}
 
 	require.False(t, queryResult.Next())
 	require.NotNil(t, queryResult.Err())

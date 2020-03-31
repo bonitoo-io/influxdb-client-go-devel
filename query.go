@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bonitoo-io/influxdb-client-go/domain"
 )
 
 const (
@@ -42,8 +44,8 @@ type QueryApi interface {
 	QueryString(ctx context.Context, query string) (string, error)
 	// QueryString executes flux query on the InfluxDB server and returns QueryRawResult which parses streamed response and returns raw csv lines
 	QueryRaw(ctx context.Context, query string) (*QueryRawResult, error)
-	// Query executes flux query on the InfluxDB server and returns  QueryCSVResult which parses streamed response into structures representing flux table parts
-	Query(ctx context.Context, query string) (*QueryCSVResult, error)
+	// Query executes flux query on the InfluxDB server and returns  QueryTableResult which parses streamed response into structures representing flux table parts
+	Query(ctx context.Context, query string) (*QueryTableResult, error)
 }
 
 // queryApiImpl implements QueryApi interface
@@ -51,23 +53,6 @@ type queryApiImpl struct {
 	org    string
 	client InfluxDBClient
 	url    string
-}
-
-// queryReq wraps flux query request parameters
-type queryReq struct {
-	Query   string      `json:"query"`
-	Type    string      `json:"type"`
-	Dialect dialect     `json:"dialect"`
-	Extern  interface{} `json:"extern,omitempty"`
-}
-
-// dialect wraps flux query dialect properties
-type dialect struct {
-	Annotations    []string `json:"annotations,omitempty"`
-	CommentPrefix  string   `json:"commentPrefix,omitempty"`
-	DateTimeFormat string   `json:"dateTimeFormat,omitempty"`
-	Delimiter      string   `json:"delimiter,omitempty"`
-	Header         bool     `json:"header"`
 }
 
 func (q *queryApiImpl) QueryString(ctx context.Context, query string) (string, error) {
@@ -99,10 +84,14 @@ func (q *queryApiImpl) QueryRaw(ctx context.Context, query string) (*QueryRawRes
 	if err != nil {
 		return nil, err
 	}
-	qr := queryReq{Query: query, Type: "flux", Dialect: dialect{
-		Annotations: []string{"datatype", "group", "default"},
-		Delimiter:   ",",
-		Header:      true,
+	annotations := []string{"datatype", "group", "default"}
+	delimiter := "'"
+	header := true
+	queryType := "flux"
+	qr := domain.Query{Query: query, Type: &queryType, Dialect: &domain.Dialect{
+		Annotations: &annotations,
+		Delimiter:   &delimiter,
+		Header:      &header,
 	}}
 	qrJson, err := json.Marshal(qr)
 	if err != nil {
@@ -122,22 +111,26 @@ func (q *queryApiImpl) QueryRaw(ctx context.Context, query string) (*QueryRawRes
 	return queryResult, nil
 }
 
-func (q *queryApiImpl) Query(ctx context.Context, query string) (*QueryCSVResult, error) {
-	var queryResult *QueryCSVResult
+func (q *queryApiImpl) Query(ctx context.Context, query string) (*QueryTableResult, error) {
+	var queryResult *QueryTableResult
 	queryUrl, err := q.queryUrl()
 	if err != nil {
 		return nil, err
 	}
-	qr := queryReq{Query: query, Type: "flux", Dialect: dialect{
-		Annotations: []string{"datatype", "group", "default"},
-		Delimiter:   ",",
-		Header:      true,
+	annotations := []string{"datatype", "group", "default"}
+	delimiter := "'"
+	header := true
+	queryType := "flux"
+	qr := domain.Query{Query: query, Type: &queryType, Dialect: &domain.Dialect{
+		Annotations: &annotations,
+		Delimiter:   &delimiter,
+		Header:      &header,
 	}}
 	qrJson, err := json.Marshal(qr)
 	if err != nil {
 		return nil, err
 	}
-	error := q.client.postRequest(ctx, queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
+	perror := q.client.postRequest(ctx, queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept-Encoding", "gzip")
 	},
@@ -150,11 +143,11 @@ func (q *queryApiImpl) Query(ctx context.Context, query string) (*QueryCSVResult
 			}
 			csvReader := csv.NewReader(resp.Body)
 			csvReader.FieldsPerRecord = -1
-			queryResult = &QueryCSVResult{Closer: resp.Body, csvReader: csvReader}
+			queryResult = &QueryTableResult{Closer: resp.Body, csvReader: csvReader}
 			return nil
 		})
-	if error != nil {
-		return queryResult, error
+	if perror != nil {
+		return queryResult, perror
 	}
 	return queryResult, nil
 }
@@ -202,15 +195,16 @@ func (q *QueryRawResult) Err() error {
 	return q.scanner.Err()
 }
 
-// QueryRawResult parses streamed flux query response into structures representing flux table parts
+// QueryTableResult parses streamed flux query response into structures representing flux table parts
 // Walking though the result is done by repeatedly calling Next() until returns false.
 // Actual flux table info (columns with names, data types, etc) is returned by TableMetadata() method.
 // Data are acquired by Record() method.
 // Preliminary end can be caused by an error, so when Next() return false, check Err() for an error
-type QueryCSVResult struct {
+type QueryTableResult struct {
 	io.Closer
 	csvReader     *csv.Reader
 	tablePosition int
+	tableChanged  bool
 	table         *FluxTableMetadata
 	record        *FluxRecord
 	err           error
@@ -218,7 +212,7 @@ type QueryCSVResult struct {
 
 // TablePosition returns actual flux table position in the result.
 // Each new table is introduced by annotations
-func (q *QueryCSVResult) TablePosition() int {
+func (q *QueryTableResult) TablePosition() int {
 	if q.tablePosition > 0 {
 		return q.tablePosition - 1
 	}
@@ -226,13 +220,19 @@ func (q *QueryCSVResult) TablePosition() int {
 }
 
 // TableMetadata returns actual flux table metadata
-func (q *QueryCSVResult) TableMetadata() *FluxTableMetadata {
+func (q *QueryTableResult) TableMetadata() *FluxTableMetadata {
 	return q.table
+}
+
+// TableChanged returns true if last call of Next() found also new result table
+// Table information is available via TableMetadata method
+func (q *QueryTableResult) TableChanged() bool {
+	return q.tableChanged
 }
 
 // Record returns last parsed flux table data row
 // Use Record methods to access value and row properties
-func (q *QueryCSVResult) Record() *FluxRecord {
+func (q *QueryTableResult) Record() *FluxRecord {
 	return q.record
 }
 
@@ -245,10 +245,10 @@ const (
 )
 
 // Next advances to next row in query result.
-// During the first time run it creates also table metadata
+// During the first time it is called, Next creates also table metadata
 // Actual parsed row is available through Record() function
 // Returns false in case of end or an error, otherwise true
-func (q *QueryCSVResult) Next() bool {
+func (q *QueryTableResult) Next() bool {
 	var row []string
 	// set closing query in case of preliminary return
 	closer := func() {
@@ -264,6 +264,7 @@ func (q *QueryCSVResult) Next() bool {
 		closer()
 	}()
 	parsingState := parsingStateNormal
+	q.tableChanged = false
 readRow:
 	row, q.err = q.csvReader.Read()
 	if q.err == io.EOF {
@@ -326,6 +327,7 @@ readRow:
 	case "#datatype":
 		q.table = newFluxTableMetadata(q.tablePosition)
 		q.tablePosition++
+		q.tableChanged = true
 		for i, d := range row[1:] {
 			q.table.AddColumn(newFluxColumn(i, d))
 		}
@@ -353,7 +355,7 @@ readRow:
 }
 
 // Err returns an error raised during flux query response parsing
-func (q *QueryCSVResult) Err() error {
+func (q *QueryTableResult) Err() error {
 	return q.err
 }
 
