@@ -5,7 +5,6 @@
 package influxdb2
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -40,11 +39,9 @@ const (
 
 // QueryApi provides methods for performing synchronously flux query against InfluxDB server
 type QueryApi interface {
-	// QueryString executes flux query on the InfluxDB server and returns complete query result as a string without table annotations (data types, group, defaults)
-	QueryString(ctx context.Context, query string) (string, error)
-	// QueryString executes flux query on the InfluxDB server and returns QueryRawResult which parses streamed response and returns raw csv lines
-	QueryRaw(ctx context.Context, query string) (*QueryRawResult, error)
-	// Query executes flux query on the InfluxDB server and returns  QueryTableResult which parses streamed response into structures representing flux table parts
+	// QueryRaw executes flux query on the InfluxDB server and returns complete query result as a string with table annotations according to dialect
+	QueryRaw(ctx context.Context, query string, dialect *domain.Dialect) (string, error)
+	// Query executes flux query on the InfluxDB server and returns QueryTableResult which parses streamed response into structures representing flux table parts
 	Query(ctx context.Context, query string) (*QueryTableResult, error)
 }
 
@@ -55,16 +52,29 @@ type queryApiImpl struct {
 	url    string
 }
 
-func (q *queryApiImpl) QueryString(ctx context.Context, query string) (string, error) {
+func (q *queryApiImpl) QueryRaw(ctx context.Context, query string, dialect *domain.Dialect) (string, error) {
 	queryUrl, err := q.queryUrl()
 	if err != nil {
 		return "", err
 	}
+	queryType := "flux"
+	qr := domain.Query{Query: query, Type: &queryType, Dialect: dialect}
+	qrJson, err := json.Marshal(qr)
+	if err != nil {
+		return "", err
+	}
 	var body string
-	error := q.client.postRequest(ctx, queryUrl, strings.NewReader(query), func(req *http.Request) {
-		req.Header.Add("Content-Type", "application/vnd.flux")
+	perror := q.client.postRequest(ctx, queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept-Encoding", "gzip")
 	},
 		func(resp *http.Response) error {
+			if resp.Header.Get("Content-Encoding") == "gzip" {
+				resp.Body, err = gzip.NewReader(resp.Body)
+				if err != nil {
+					return err
+				}
+			}
 			respBody, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
 				return err
@@ -72,43 +82,22 @@ func (q *queryApiImpl) QueryString(ctx context.Context, query string) (string, e
 			body = string(respBody)
 			return nil
 		})
-	if error != nil {
-		return "", error
+	if perror != nil {
+		return "", perror
 	}
 	return body, nil
 }
 
-func (q *queryApiImpl) QueryRaw(ctx context.Context, query string) (*QueryRawResult, error) {
-	var queryResult *QueryRawResult
-	queryUrl, err := q.queryUrl()
-	if err != nil {
-		return nil, err
-	}
+// DefaultDialect return flux query Dialect with full annotations (datatype, group, default), header and comma char as a delimiter
+func DefaultDialect() *domain.Dialect {
 	annotations := []string{"datatype", "group", "default"}
-	delimiter := "'"
+	delimiter := ","
 	header := true
-	queryType := "flux"
-	qr := domain.Query{Query: query, Type: &queryType, Dialect: &domain.Dialect{
+	return &domain.Dialect{
 		Annotations: &annotations,
 		Delimiter:   &delimiter,
 		Header:      &header,
-	}}
-	qrJson, err := json.Marshal(qr)
-	if err != nil {
-		return nil, err
 	}
-	error := q.client.postRequest(ctx, queryUrl, bytes.NewReader(qrJson), func(req *http.Request) {
-		req.Header.Set("Content-Type", "application/json")
-	},
-		func(resp *http.Response) error {
-			scan := bufio.NewScanner(resp.Body)
-			queryResult = &QueryRawResult{Closer: resp.Body, scanner: scan}
-			return nil
-		})
-	if error != nil {
-		return queryResult, error
-	}
-	return queryResult, nil
 }
 
 func (q *queryApiImpl) Query(ctx context.Context, query string) (*QueryTableResult, error) {
@@ -117,15 +106,8 @@ func (q *queryApiImpl) Query(ctx context.Context, query string) (*QueryTableResu
 	if err != nil {
 		return nil, err
 	}
-	annotations := []string{"datatype", "group", "default"}
-	delimiter := "'"
-	header := true
 	queryType := "flux"
-	qr := domain.Query{Query: query, Type: &queryType, Dialect: &domain.Dialect{
-		Annotations: &annotations,
-		Delimiter:   &delimiter,
-		Header:      &header,
-	}}
+	qr := domain.Query{Query: query, Type: &queryType, Dialect: DefaultDialect()}
 	qrJson, err := json.Marshal(qr)
 	if err != nil {
 		return nil, err
@@ -166,33 +148,6 @@ func (q *queryApiImpl) queryUrl() (string, error) {
 		q.url = u.String()
 	}
 	return q.url, nil
-}
-
-// QueryRawResult parses streamed flux query response into lines with csv rows
-// Walking though the result is done by repeatedly calling Next() until returns false.
-// Lines are than returned by Row()
-// Preliminary end can be caused by an error, so when Next() return false, check Err() for an error
-type QueryRawResult struct {
-	io.Closer
-	scanner *bufio.Scanner
-	row     string
-}
-
-// Next walks through the flux query result line by line
-// Returns false in case of end or an error, otherwise true
-func (q *QueryRawResult) Next() bool {
-	return q.scanner.Scan()
-}
-
-// Row returns the actual flux query result csv line
-// First three rows are the flux query table annotations
-func (q *QueryRawResult) Row() string {
-	return q.scanner.Text()
-}
-
-// Err returns an error raised during flux query response parsing
-func (q *QueryRawResult) Err() error {
-	return q.scanner.Err()
 }
 
 // QueryTableResult parses streamed flux query response into structures representing flux table parts

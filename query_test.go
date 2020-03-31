@@ -5,11 +5,14 @@
 package influxdb2
 
 import (
-	"bufio"
+	"context"
 	"encoding/csv"
 	"fmt"
+	"github.com/bonitoo-io/influxdb-client-go/internal/gzip"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -373,7 +376,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.Nil(t, queryResult.Err())
 }
 
-func TestQueryRawResultMultiTables(t *testing.T) {
+func TestQueryRawResult(t *testing.T) {
 	csvRows := []string{`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string`,
 		`#group,false,false,true,true,false,false,true,true,true,true`,
 		`#default,_result,,,,,,,,,`,
@@ -391,15 +394,38 @@ func TestQueryRawResultMultiTables(t *testing.T) {
 	}
 	csvTable := strings.Join(csvRows, "\r\n")
 	csvTable = fmt.Sprintf("%s\r\n", csvTable)
-	reader := strings.NewReader(csvTable)
-	queryResult := &QueryRawResult{Closer: ioutil.NopCloser(reader), scanner: bufio.NewScanner(reader)}
-	for i, row := range csvRows {
-		require.True(t, queryResult.Next(), queryResult.Err())
-		require.Nil(t, queryResult.Err(), i)
-		assert.Equal(t, queryResult.Row(), row, i)
-	}
-	require.False(t, queryResult.Next())
-	require.Nil(t, queryResult.Err())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		if r.Method == http.MethodPost {
+			rbody, err := ioutil.ReadAll(r.Body)
+			fmt.Printf("Req: %s\n", string(rbody))
+			body, err := gzip.CompressWithGzip(strings.NewReader(csvTable), 6)
+			if err == nil {
+				var bytes []byte
+				bytes, err = ioutil.ReadAll(body)
+				if err == nil {
+					w.Header().Set("Content-Type", "text/csv")
+					w.Header().Set("Content-Encoding", "gzip")
+					w.WriteHeader(http.StatusOK)
+					w.Write(bytes)
+				}
+			}
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+			}
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, "a")
+	queryApi := client.QueryApi("org")
+
+	result, err := queryApi.QueryRaw(context.Background(), "flux", nil)
+	require.Nil(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, csvTable, result)
 
 }
 

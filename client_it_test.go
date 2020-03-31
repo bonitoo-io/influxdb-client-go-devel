@@ -19,6 +19,7 @@ var e2e bool
 
 func init() {
 	flag.BoolVar(&e2e, "e2e", false, "run the end tests (requires a working influxdb instance on 127.0.0.1)")
+	flag.StringVar(&authToken, "token", "", "authentication token")
 }
 
 func TestReady(t *testing.T) {
@@ -72,7 +73,7 @@ func TestWrite(t *testing.T) {
 	for i, f := int64(10), 33.0; i < 20; i++ {
 		p := NewPoint("test",
 			map[string]string{"a": strconv.FormatInt(i%2, 10), "b": "static"},
-			map[string]interface{}{"f": strconv.FormatFloat(f, 'f', 2, 64), "i": fmt.Sprintf("%di", i)},
+			map[string]interface{}{"f": f, "i": i},
 			time.Now())
 		writeApi.WritePoint(p)
 		f += 3.3
@@ -82,22 +83,6 @@ func TestWrite(t *testing.T) {
 
 }
 
-func TestQueryString(t *testing.T) {
-	if !e2e {
-		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
-	}
-	client := NewClient("http://localhost:9999", token())
-
-	queryApi := client.QueryApi("my-org")
-	res, err := queryApi.QueryString(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`)
-	if err != nil {
-		t.Error(err)
-	} else {
-		fmt.Println("QueryResult:")
-		fmt.Println(res)
-	}
-}
-
 func TestQueryRaw(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
@@ -105,21 +90,13 @@ func TestQueryRaw(t *testing.T) {
 	client := NewClient("http://localhost:9999", token())
 
 	queryApi := client.QueryApi("my-org")
-	fmt.Println("QueryResult")
-	result, err := queryApi.QueryRaw(context.Background(), `from(bucket:"my-bucket")|> range(start: -24h) |> filter(fn: (r) => r._measurement == "test")|> yield(name: "xxx")`)
+	res, err := queryApi.QueryRaw(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`, nil)
 	if err != nil {
 		t.Error(err)
 	} else {
-		for i := 0; result.Next(); i++ {
-			fmt.Print(i)
-			fmt.Print(":")
-			fmt.Println(result.Row())
-		}
-		if result.Err() != nil {
-			t.Error(result.Err())
-		}
+		fmt.Println("QueryResult:")
+		fmt.Println(res)
 	}
-
 }
 
 func TestQuery(t *testing.T) {
