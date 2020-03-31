@@ -63,7 +63,7 @@ func main() {
 	fmt.Println()
 
 	var writer Writer
-	influx := clientb.NewInfluxDBClientWithOptions(InfluxDB2Url, *token, clientb.Options{
+	influx := clientb.NewClientWithOptions(InfluxDB2Url, *token, clientb.Options{
 		BatchSize:     5000,
 		Debug:         *debugLevel,
 		RetryInterval: 1000,

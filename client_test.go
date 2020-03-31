@@ -24,7 +24,7 @@ func TestUserAgent(t *testing.T) {
 	}))
 
 	defer server.Close()
-	c := NewInfluxDBClientWithToken(server.URL, "x")
+	c := NewClient(server.URL, "x")
 	ready, err := c.Ready(context.Background())
 	assert.True(t, ready)
 	assert.Nil(t, err)

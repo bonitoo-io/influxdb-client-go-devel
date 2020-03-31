@@ -66,34 +66,6 @@ func DefaultOptions() *Options {
 	return &Options{BatchSize: 1000, MaxRetries: 3, RetryInterval: 1000, FlushInterval: 1000, Precision: time.Nanosecond, UseGZip: false, RetryBufferLimit: 10000}
 }
 
-// Error represent error response from InfluxDBServer or http error
-type Error struct {
-	StatusCode int
-	Code       string
-	Message    string
-	Err        error
-	RetryAfter uint
-}
-
-// Error fulfils error interface
-func (e *Error) Error() string {
-	if e.Err != nil {
-		return e.Err.Error()
-	}
-	return fmt.Sprintf("%s: %s", e.Code, e.Message)
-}
-
-// NewError returns newly created Error initialised with nested error and default values
-func NewError(err error) *Error {
-	return &Error{
-		StatusCode: 0,
-		Code:       "",
-		Message:    "",
-		Err:        err,
-		RetryAfter: 0,
-	}
-}
-
 // InfluxDBClient provides API to communicate with InfluxDBServer
 // There two APIs for writing, WriteApi and WriteApiBlocking.
 // WriteApi provides asynchronous, non-blocking, methods for writing time series data.
@@ -134,22 +106,18 @@ type client struct {
 type RequestCallback func(req *http.Request)
 type ResponseCallback func(req *http.Response) error
 
-func NewInfluxDBClientEmpty(serverUrl string) InfluxDBClient {
-	return NewInfluxDBClientWithToken(serverUrl, "")
-}
-
-// NewInfluxDBClient creates InfluxDBClient for connecting to given serverUrl with provided authentication token, with default options
+// NewClient creates InfluxDBClient for connecting to given serverUrl with provided authentication token, with default options
 // Authentication token can be empty in case of connecting to newly installed InfluxDB server, which has not been set up yet.
 // In such case Setup will set authentication token
-func NewInfluxDBClientWithToken(serverUrl string, authToken string) InfluxDBClient {
-	return NewInfluxDBClientWithOptions(serverUrl, authToken, *DefaultOptions())
+func NewClient(serverUrl string, authToken string) InfluxDBClient {
+	return NewClientWithOptions(serverUrl, authToken, *DefaultOptions())
 }
 
-// NewInfluxDBClientWithOptions creates InfluxDBClient for connecting to given serverUrl with provided authentication token
+// NewClientWithOptions creates InfluxDBClient for connecting to given serverUrl with provided authentication token
 // and configured with custom Options
 // Authentication token can be empty in case of connecting to newly installed InfluxDB server, which has not been set up yet.
 // In such case Setup will set authentication token
-func NewInfluxDBClientWithOptions(serverUrl string, authToken string, options Options) InfluxDBClient {
+func NewClientWithOptions(serverUrl string, authToken string, options Options) InfluxDBClient {
 	client := &client{
 		serverUrl:     serverUrl,
 		authorization: "Token " + authToken,
@@ -288,4 +256,32 @@ func (c *client) handleHttpError(r *http.Response) *Error {
 		}
 	}
 	return error
+}
+
+// Error represent error response from InfluxDBServer or http error
+type Error struct {
+	StatusCode int
+	Code       string
+	Message    string
+	Err        error
+	RetryAfter uint
+}
+
+// Error fulfils error interface
+func (e *Error) Error() string {
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+// NewError returns newly created Error initialised with nested error and default values
+func NewError(err error) *Error {
+	return &Error{
+		StatusCode: 0,
+		Code:       "",
+		Message:    "",
+		Err:        err,
+		RetryAfter: 0,
+	}
 }
