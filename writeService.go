@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bonitoo-io/influxdb-client-go/internal/gzip"
@@ -34,6 +35,7 @@ type writeService struct {
 	url              string
 	lastWriteAttempt time.Time
 	retryQueue       *queue
+	lock             sync.Mutex
 }
 
 func newWriteService(org string, bucket string, client InfluxDBClient) *writeService {
@@ -165,7 +167,9 @@ func (w *writeService) writeUrl() (string, error) {
 		params.Set("bucket", w.bucket)
 		params.Set("precision", precisionToString(w.client.Options().Precision))
 		u.RawQuery = params.Encode()
+		w.lock.Lock()
 		w.url = u.String()
+		w.lock.Unlock()
 	}
 	return w.url, nil
 }
