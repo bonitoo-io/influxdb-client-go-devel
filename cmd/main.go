@@ -66,7 +66,7 @@ func main() {
 	influx := clientb.NewInfluxDBClientWithOptions(InfluxDB2Url, *token, clientb.Options{
 		BatchSize:     5000,
 		Debug:         *debugLevel,
-		RetryInterval: 30,
+		RetryInterval: 1000,
 		FlushInterval: 1000,
 	})
 	if *writerType == "points" {

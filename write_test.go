@@ -233,7 +233,7 @@ func TestRetry(t *testing.T) {
 	}
 	client.options.Debug = 3
 	client.options.BatchSize = 5
-	client.options.RetryInterval = 10
+	client.options.RetryInterval = 10000
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(15)
 	for i := 0; i < 5; i++ {

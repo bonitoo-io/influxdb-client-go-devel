@@ -61,7 +61,7 @@ func (w *writeService) handleWrite(ctx context.Context, batch *batch) error {
 			if !retrying {
 				b := w.retryQueue.first()
 				// Can we write? In case of retryable error we must wait a bit
-				if w.lastWriteAttempt.IsZero() || time.Now().After(w.lastWriteAttempt.Add(time.Second*time.Duration(b.retryInterval))) {
+				if w.lastWriteAttempt.IsZero() || time.Now().After(w.lastWriteAttempt.Add(time.Millisecond*time.Duration(b.retryInterval))) {
 					retrying = true
 				} else {
 					logger.Warn("Write proc: cannot write yet, storing batch to queue")
@@ -118,7 +118,7 @@ func (w *writeService) writeBatch(ctx context.Context, batch *batch) error {
 		if error.StatusCode == http.StatusTooManyRequests || error.StatusCode == http.StatusServiceUnavailable {
 			logger.Errorf("Write error: %s\nBatch kept for retrying\n", error.Error())
 			if error.RetryAfter > 0 {
-				batch.retryInterval = error.RetryAfter
+				batch.retryInterval = error.RetryAfter * 1000
 			} else {
 				batch.retryInterval = w.client.Options().RetryInterval
 			}

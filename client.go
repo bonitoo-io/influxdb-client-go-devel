@@ -42,11 +42,11 @@ func userAgent() string {
 
 // Options holds configuration properties for communicating with InfluxDB server
 type Options struct {
-	// Maximum number of points sent to server in single request. Default 5000
+	// Maximum number of points sent to server in single request. Default 1000
 	BatchSize uint
 	// Interval, in ms, in which is buffer flushed if it has not been already written (by reaching batch size) . Default 1000ms
 	FlushInterval uint
-	// Default retry interval in sec, if not sent by server. Default 30s
+	// Default retry interval in ms, if not sent by server. Default 30s
 	RetryInterval uint
 	// Maximum count of retry attempts of failed writes
 	MaxRetries uint
@@ -63,7 +63,7 @@ type Options struct {
 
 // DefaultOptions returns Options object with default values
 func DefaultOptions() *Options {
-	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: time.Nanosecond, UseGZip: false, RetryBufferLimit: 10000}
+	return &Options{BatchSize: 1000, MaxRetries: 3, RetryInterval: 1000, FlushInterval: 1000, Precision: time.Nanosecond, UseGZip: false, RetryBufferLimit: 10000}
 }
 
 // Error represent error response from InfluxDBServer or http error
