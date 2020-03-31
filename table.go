@@ -4,7 +4,11 @@
 
 package influxdb2
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // FluxTableMetadata holds flux query result table information represented by collection of columns.
 // Each new table is introduced by annotations
@@ -58,6 +62,24 @@ func (f *FluxTableMetadata) Column(index int) *FluxColumn {
 	return f.columns[index]
 }
 
+// String returns FluxTableMetadata string dump
+func (f *FluxTableMetadata) String() string {
+	var buffer strings.Builder
+	for i, c := range f.columns {
+		if i > 0 {
+			buffer.WriteString(",")
+		}
+		buffer.WriteString("col")
+		buffer.WriteString(c.String())
+	}
+	return buffer.String()
+}
+
+// newFluxColumn creates FluxColumn for position and data type
+func newFluxColumn(index int, dataType string) *FluxColumn {
+	return &FluxColumn{index: index, dataType: dataType}
+}
+
 // SetDefaultValue sets default value for the column
 func (f *FluxColumn) SetDefaultValue(defaultValue string) {
 	f.defaultValue = defaultValue
@@ -76,11 +98,6 @@ func (f *FluxColumn) SetDataType(dataType string) {
 // SetName sets name of the column
 func (f *FluxColumn) SetName(name string) {
 	f.name = name
-}
-
-// newFluxColumn creates FluxColumn for position and data type
-func newFluxColumn(index int, dataType string) *FluxColumn {
-	return &FluxColumn{index: index, dataType: dataType}
 }
 
 // DefaultValue returns default value of the column
@@ -108,14 +125,19 @@ func (f *FluxColumn) Index() int {
 	return f.index
 }
 
-// Table returns index of the table record belongs to
-func (r *FluxRecord) Table() int {
-	return r.table
+// String returns FluxColumn string dump
+func (f *FluxColumn) String() string {
+	return fmt.Sprintf("{%d: name: %s, datatype: %s, defaultValue: %s, group: %v}", f.index, f.name, f.dataType, f.defaultValue, f.group)
 }
 
 // newFluxRecord returns new record for the table with values
 func newFluxRecord(table int, values map[string]interface{}) *FluxRecord {
 	return &FluxRecord{table: table, values: values}
+}
+
+// Table returns index of the table record belongs to
+func (r *FluxRecord) Table() int {
+	return r.table
 }
 
 // Start returns the inclusive lower time bound of all records in the current table
@@ -156,4 +178,18 @@ func (r *FluxRecord) Values() map[string]interface{} {
 // ValueByKey returns value for given column key for the record
 func (r *FluxRecord) ValueByKey(key string) interface{} {
 	return r.values[key]
+}
+
+// String returns FluxRecord string dump
+func (r *FluxRecord) String() string {
+	var buffer strings.Builder
+	i := 0
+	for k, v := range r.values {
+		if i > 0 {
+			buffer.WriteString(",")
+		}
+		buffer.WriteString(fmt.Sprintf("%s:%v", k, v))
+		i++
+	}
+	return buffer.String()
 }

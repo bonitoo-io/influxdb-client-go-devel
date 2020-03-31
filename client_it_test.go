@@ -111,13 +111,11 @@ func TestQuery(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-		lastTable := -1
 		for result.Next() {
-			if lastTable != result.TablePosition() {
-				fmt.Printf("%#v\n", result.TableMetadata())
-				lastTable = result.TablePosition()
+			if result.TableChanged() {
+				fmt.Printf("table: %s\n", result.TableMetadata().String())
 			}
-			fmt.Printf("%#v\n", result.Record())
+			fmt.Printf("row: %sv\n", result.Record().String())
 		}
 		if result.Err() != nil {
 			t.Error(result.Err())
@@ -127,7 +125,7 @@ func TestQuery(t *testing.T) {
 
 func token() string {
 	if authToken == "" {
-		authToken = "Rr6euRmb47z0Egb3LjIr2feh7q_o3G8fGMFBwuEdhoVdQVWN16C-AUihf0yLDAknRu9B8eMFe27Y2xxUBzYamA=="
+		authToken = "3a0_wuLowYq3mrd4Ja4aRKdVviwQNSYoWyL1px-rncENmppEYodf4UWswxk_kFGzTG2gOM5t7q3JuZJSP5cQ2Q=="
 	}
 	return authToken
 }
