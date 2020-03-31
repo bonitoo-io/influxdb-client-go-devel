@@ -7,15 +7,15 @@ import (
 )
 
 func TestTable(t *testing.T) {
-	table := &FluxTableMetadata{index: 1}
+	table := &FluxTableMetadata{position: 1}
 	table.AddColumn(&FluxColumn{dataType: "string", defaultValue: "_result", name: "result", group: false, index: 0})
-	table.AddColumn(&FluxColumn{dataType: "long", defaultValue: "10", name: "tableIndex", group: false, index: 1})
+	table.AddColumn(&FluxColumn{dataType: "long", defaultValue: "10", name: "_table", group: false, index: 1})
 	table.AddColumn(&FluxColumn{dataType: "dateTime:RFC3339", defaultValue: "", name: "_start", group: true, index: 2})
 	table.AddColumn(&FluxColumn{dataType: "double", defaultValue: "1.1", name: "_value", group: false, index: 3})
 	table.AddColumn(&FluxColumn{dataType: "string", defaultValue: "", name: "_field", group: true, index: 4})
 	require.Len(t, table.columns, 5)
 
-	assert.Equal(t, table.Index(), 1)
+	assert.Equal(t, table.Position(), 1)
 	require.NotNil(t, table.Column(0))
 	assert.Equal(t, table.Column(0).DefaultValue(), "_result")
 	assert.Equal(t, table.Column(0).DataType(), "string")
@@ -26,7 +26,7 @@ func TestTable(t *testing.T) {
 	require.NotNil(t, table.Column(1))
 	assert.Equal(t, table.Column(1).DefaultValue(), "10")
 	assert.Equal(t, table.Column(1).DataType(), "long")
-	assert.Equal(t, table.Column(1).Name(), "tableIndex")
+	assert.Equal(t, table.Column(1).Name(), "_table")
 	assert.Equal(t, table.Column(1).Index(), 1)
 	assert.Equal(t, table.Column(1).IsGroup(), false)
 
@@ -53,10 +53,10 @@ func TestTable(t *testing.T) {
 }
 
 func TestRecord(t *testing.T) {
-	record := &FluxRecord{tableIndex: 2,
+	record := &FluxRecord{table: 2,
 		values: map[string]interface{}{
 			"result":       "_result",
-			"tableIndex":   int64(0),
+			"_table":       int64(0),
 			"_start":       mustParseTime("2020-02-17T22:19:49.747562847Z"),
 			"_stop":        mustParseTime("2020-02-18T22:19:49.747562847Z"),
 			"_time":        mustParseTime("2020-02-18T10:34:08.135814545Z"),
@@ -74,5 +74,5 @@ func TestRecord(t *testing.T) {
 	assert.Equal(t, record.Field(), "f")
 	assert.Equal(t, record.Value(), 1.4)
 	assert.Equal(t, record.Measurement(), "test")
-	assert.Equal(t, record.TableIndex(), 2)
+	assert.Equal(t, record.Table(), 2)
 }

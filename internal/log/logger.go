@@ -5,10 +5,14 @@ import (
 	"log"
 )
 
+// Logger provides filtered and categorized logging API.
+// It logs to standard logger, only errors by default
 type Logger struct {
 	debugLevel uint
 }
 
+// SetDebugLevel to filter log messages. Each level mean to log all categories bellow
+// 0 errors , 1 - warning, 2 - info, 3 - debug
 func (l *Logger) SetDebugLevel(debugLevel uint) {
 	l.debugLevel = debugLevel
 }

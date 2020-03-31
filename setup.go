@@ -10,10 +10,6 @@ import (
 	"net/http"
 )
 
-// Setup sets up a new InfluxDB server.
-// It requires a client be set up with a username and password.
-// If successful will add a token to the client.
-// RetentionPeriodHrs of zero will result in infinite retention.
 func (c *client) Setup(ctx context.Context, username, password, org, bucket string) (*SetupResponse, error) {
 	if username == "" || password == "" {
 		return nil, errors.New("a username and password is required for a setup")

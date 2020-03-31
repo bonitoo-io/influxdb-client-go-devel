@@ -1,3 +1,5 @@
+// Package client provides API for using InfluxDB client in Go
+// It's intended to use with InfluxDB 2 server
 package client
 
 import (
@@ -22,8 +24,10 @@ const (
 	Version = "1.0.0"
 )
 
+// Keeps once created User-Agent string
 var userAgentCache string
 
+// userAgent does lazy user-agent string initialisation
 func userAgent() string {
 	if userAgentCache == "" {
 		userAgentCache = fmt.Sprintf("influxdb-client-go/%s  (%s; %s)", Version, runtime.GOOS, runtime.GOARCH)
@@ -31,34 +35,33 @@ func userAgent() string {
 	return userAgentCache
 }
 
+// Options holds configuration properties for communicating with InfluxDB server
 type Options struct {
 	// Maximum number of points sent to server in single request. Default 5000
 	BatchSize uint
 	// Interval, in ms, in which is buffer flushed if it has not been already written (by reaching batch size) . Default 1000ms
 	FlushInterval uint
-	// Default retry interval in sec, if not sent by server
-	// Default  30s
+	// Default retry interval in sec, if not sent by server. Default 30s
 	RetryInterval uint
 	// Maximum count of retry attempts of failed writes
 	MaxRetries uint
 	// Maximum number of points to keep for retry. Should be multiple of BatchSize. Default 10,000
 	RetryBufferLimit uint
-	// 0 error, 1 - warning, 2 - info, 3 - debug
+	// DebugLevel to filter log messages. Each level mean to log all categories bellow. 0 error, 1 - warning, 2 - info, 3 - debug
 	Debug uint
 	// Precision to use in writes for timestamp. In unit of duration: time.Nanosecond, time.Microsecond, time.Millisecond, time.Second
-	// default time.Nanosecond
+	// Default time.Nanosecond
 	Precision time.Duration
 	// Whether to use GZip compression in requests. Default false
 	UseGZip bool
 }
 
 // DefaultOptions returns Options object with default values
-// TODO: singleton?
 func DefaultOptions() *Options {
 	return &Options{BatchSize: 5000, MaxRetries: 3, RetryInterval: 60, FlushInterval: 1000, Precision: time.Nanosecond, UseGZip: false, RetryBufferLimit: 10000}
 }
 
-// Error represent error response from InfluxDBServer
+// Error represent error response from InfluxDBServer or http error
 type Error struct {
 	StatusCode int
 	Code       string
@@ -67,6 +70,7 @@ type Error struct {
 	RetryAfter uint
 }
 
+// Error fulfils error interface
 func (e *Error) Error() string {
 	if e.Err != nil {
 		return e.Err.Error()
@@ -85,19 +89,33 @@ func NewError(err error) *Error {
 	}
 }
 
-// InfluxDBClient provides functions to communicate with InfluxDBServer
+// InfluxDBClient provides API to communicate with InfluxDBServer
+// There two APIs for writing, WriteApi and WriteApiBlocking.
+// WriteApi provides asynchronous, non-blocking, methods for writing time series data.
+// WriteApiBlocking provides blocking methods for writing time series data
 type InfluxDBClient interface {
+	// WriteApi returns the asynchronous, non-blocking, Write client.
 	WriteApi(org, bucket string) WriteApi
+	// WriteApi returns the synchronous, blocking, Write client.
 	WriteApiBlocking(org, bucket string) WriteApiBlocking
-	Close()
+	// QueryAPI returns Query client
 	QueryAPI(org string) QueryApi
-	postRequest(ctx context.Context, url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error
+	// Close ensures all ongoing asynchronous write clients finish
+	Close()
+	// Options returns the options associated with client
 	Options() *Options
+	// ServerUrl returns the url of the server url client talks to
 	ServerUrl() string
+	// Setup sends request to initialise new InfluxDB server with user, org and bucket
+	// and returns details about newly created entities along with the authorization object
 	Setup(ctx context.Context, username, password, org, bucket string) (*SetupResponse, error)
+	// Ready checks InfluxDB server is running
 	Ready(ctx context.Context) (bool, error)
+	// Internal  method for handling posts
+	postRequest(ctx context.Context, url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error
 }
 
+// client implements InfluxDBClient interface
 type client struct {
 	serverUrl     string
 	authorization string
@@ -106,6 +124,7 @@ type client struct {
 	httpDoer      domain.HttpRequestDoer
 }
 
+// Http operation callbacks
 type RequestCallback func(req *http.Request)
 type ResponseCallback func(req *http.Response) error
 
@@ -113,10 +132,17 @@ func NewInfluxDBClientEmpty(serverUrl string) InfluxDBClient {
 	return NewInfluxDBClientWithToken(serverUrl, "")
 }
 
+// NewInfluxDBClient creates InfluxDBClient for connecting to given serverUrl with provided authentication token, with default options
+// Authentication token can be empty in case of connecting to newly installed InfluxDB server, which has not been set up yet.
+// In such case Setup will set authentication token
 func NewInfluxDBClientWithToken(serverUrl string, authToken string) InfluxDBClient {
 	return NewInfluxDBClientWithOptions(serverUrl, authToken, *DefaultOptions())
 }
 
+// NewInfluxDBClientWithOptions creates InfluxDBClient for connecting to given serverUrl with provided authentication token
+// and configured with custom Options
+// Authentication token can be empty in case of connecting to newly installed InfluxDB server, which has not been set up yet.
+// In such case Setup will set authentication token
 func NewInfluxDBClientWithOptions(serverUrl string, authToken string, options Options) InfluxDBClient {
 	client := &client{
 		serverUrl:     serverUrl,
@@ -181,7 +207,7 @@ func (c *client) Close() {
 }
 
 func (c *client) QueryAPI(org string) QueryApi {
-	return &QueryApiImpl{
+	return &queryApiImpl{
 		org:    org,
 		client: c,
 	}

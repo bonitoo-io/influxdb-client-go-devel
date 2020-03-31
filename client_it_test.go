@@ -66,7 +66,7 @@ func TestWrite(t *testing.T) {
 			map[string]string{"a": strconv.FormatInt(i%2, 10), "b": "static"},
 			map[string]interface{}{"f": strconv.FormatFloat(f, 'f', 2, 64), "i": fmt.Sprintf("%di", i)},
 			time.Now())
-		writeApi.Write(p)
+		writeApi.WritePoint(p)
 		f += 3.3
 	}
 
@@ -128,9 +128,9 @@ func TestQuery(t *testing.T) {
 	} else {
 		lastTable := -1
 		for result.Next() {
-			if lastTable != result.TableIndex() {
-				fmt.Printf("%#v\n", result.Table())
-				lastTable = result.TableIndex()
+			if lastTable != result.TablePosition() {
+				fmt.Printf("%#v\n", result.TableMetadata())
+				lastTable = result.TablePosition()
 			}
 			fmt.Printf("%#v\n", result.Record())
 		}

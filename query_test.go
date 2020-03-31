@@ -30,7 +30,7 @@ func TestQueryCVSResultSingleTable(t *testing.T) {
 ,,0,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.850214724Z,6.6,f,test,1,adsfasdf
 
 `
-	expectedTable := &FluxTableMetadata{index: 0,
+	expectedTable := &FluxTableMetadata{position: 0,
 		columns: []*FluxColumn{
 			{dataType: "string", defaultValue: "_result", name: "result", group: false, index: 0},
 			{dataType: "long", defaultValue: "", name: "table", group: false, index: 1},
@@ -44,7 +44,7 @@ func TestQueryCVSResultSingleTable(t *testing.T) {
 			{dataType: "string", defaultValue: "", name: "b", group: true, index: 9},
 		},
 	}
-	expectedRecord1 := &FluxRecord{tableIndex: 0,
+	expectedRecord1 := &FluxRecord{table: 0,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(0),
@@ -59,7 +59,7 @@ func TestQueryCVSResultSingleTable(t *testing.T) {
 		},
 	}
 
-	expectedRecord2 := &FluxRecord{tableIndex: 0,
+	expectedRecord2 := &FluxRecord{table: 0,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(0),
@@ -124,7 +124,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 ,,3,2020-02-17T22:19:49.747562847Z,2020-02-18T22:19:49.747562847Z,2020-02-18T22:08:44.969100374Z,2,i,test,0,adsfasdf
 
 `
-	expectedTable1 := &FluxTableMetadata{index: 0,
+	expectedTable1 := &FluxTableMetadata{position: 0,
 		columns: []*FluxColumn{
 			{dataType: "string", defaultValue: "_result", name: "result", group: false, index: 0},
 			{dataType: "long", defaultValue: "", name: "table", group: false, index: 1},
@@ -138,7 +138,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			{dataType: "string", defaultValue: "", name: "b", group: true, index: 9},
 		},
 	}
-	expectedRecord11 := &FluxRecord{tableIndex: 0,
+	expectedRecord11 := &FluxRecord{table: 0,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(0),
@@ -152,7 +152,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"b":            "adsfasdf",
 		},
 	}
-	expectedRecord12 := &FluxRecord{tableIndex: 0,
+	expectedRecord12 := &FluxRecord{table: 0,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(0),
@@ -167,7 +167,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 		},
 	}
 
-	expectedTable2 := &FluxTableMetadata{index: 1,
+	expectedTable2 := &FluxTableMetadata{position: 1,
 		columns: []*FluxColumn{
 			{dataType: "string", defaultValue: "_result", name: "result", group: false, index: 0},
 			{dataType: "long", defaultValue: "", name: "table", group: false, index: 1},
@@ -181,7 +181,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			{dataType: "string", defaultValue: "", name: "b", group: true, index: 9},
 		},
 	}
-	expectedRecord21 := &FluxRecord{tableIndex: 1,
+	expectedRecord21 := &FluxRecord{table: 1,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(1),
@@ -195,7 +195,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"b":            "adsfasdf",
 		},
 	}
-	expectedRecord22 := &FluxRecord{tableIndex: 1,
+	expectedRecord22 := &FluxRecord{table: 1,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(1),
@@ -210,7 +210,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 		},
 	}
 
-	expectedTable3 := &FluxTableMetadata{index: 2,
+	expectedTable3 := &FluxTableMetadata{position: 2,
 		columns: []*FluxColumn{
 			{dataType: "string", defaultValue: "_result", name: "result", group: false, index: 0},
 			{dataType: "long", defaultValue: "", name: "table", group: false, index: 1},
@@ -224,7 +224,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			{dataType: "string", defaultValue: "", name: "b", group: true, index: 9},
 		},
 	}
-	expectedRecord31 := &FluxRecord{tableIndex: 2,
+	expectedRecord31 := &FluxRecord{table: 2,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(2),
@@ -238,7 +238,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"b":            "adsfasdf",
 		},
 	}
-	expectedRecord32 := &FluxRecord{tableIndex: 2,
+	expectedRecord32 := &FluxRecord{table: 2,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(2),
@@ -253,7 +253,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 		},
 	}
 
-	expectedTable4 := &FluxTableMetadata{index: 3,
+	expectedTable4 := &FluxTableMetadata{position: 3,
 		columns: []*FluxColumn{
 			{dataType: "string", defaultValue: "_result", name: "result", group: false, index: 0},
 			{dataType: "long", defaultValue: "", name: "table", group: false, index: 1},
@@ -267,7 +267,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			{dataType: "string", defaultValue: "", name: "b", group: true, index: 9},
 		},
 	}
-	expectedRecord41 := &FluxRecord{tableIndex: 3,
+	expectedRecord41 := &FluxRecord{table: 3,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(3),
@@ -281,7 +281,7 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 			"b":            "adsfasdf",
 		},
 	}
-	expectedRecord42 := &FluxRecord{tableIndex: 3,
+	expectedRecord42 := &FluxRecord{table: 3,
 		values: map[string]interface{}{
 			"result":       "_result",
 			"table":        int64(3),
@@ -303,13 +303,13 @@ func TestQueryCVSResultMultiTables(t *testing.T) {
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
 
-	require.Equal(t, queryResult.Table(), expectedTable1)
+	require.Equal(t, queryResult.TableMetadata(), expectedTable1)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord11)
 
 	require.True(t, queryResult.Next(), queryResult.Err())
 	require.Nil(t, queryResult.Err())
-	require.Equal(t, queryResult.Table(), expectedTable1)
+	require.Equal(t, queryResult.TableMetadata(), expectedTable1)
 	require.NotNil(t, queryResult.Record())
 	require.Equal(t, queryResult.Record(), expectedRecord12)
 

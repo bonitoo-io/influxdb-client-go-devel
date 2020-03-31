@@ -7,20 +7,22 @@ import (
 
 // WriteApiBlocking offers blocking methods for writing time series data synchronously into an InfluxDB server.
 type WriteApiBlocking interface {
-	// WriteRecord writes line protocol record(s) into specified bucket.
-	// WriteRecord writes without implicit batching. Batch is created from given number of arguments
+	// WriteRecord writes line protocol record(s) into bucket.
+	// WriteRecord writes without implicit batching. Batch is created from given number of records
 	// Non-blocking alternative is available in the WriteApi interface
 	WriteRecord(ctx context.Context, line ...string) error
-	// WritePoint data point into specified bucket.
-	// WritePoint writes without implicit batching. Batch is created from given number of arguments
+	// WritePoint data point into bucket.
+	// WritePoint writes without implicit batching. Batch is created from given number of points
 	// Non-blocking alternative is available in the WriteApi interface
 	WritePoint(ctx context.Context, point ...*Point) error
 }
 
+// writeApiBlockingImpl implements WriteApiBlocking interface
 type writeApiBlockingImpl struct {
 	service *writeService
 }
 
+// creates writeApiBlockingImpl for org and bucket with underlying client
 func newWriteApiBlockingImpl(org string, bucket string, client InfluxDBClient) *writeApiBlockingImpl {
 	return &writeApiBlockingImpl{service: newWriteService(org, bucket, client)}
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,85 @@ func init() {
 		if i%10 == 0 {
 			t = t.Add(time.Second)
 		}
+	}
+}
+
+// ToLineProtocol creates InfluxDB line protocol string from the Point, converting associated timestamp according to precision
+// and write result to the string builder
+func (m *Point) ToLineProtocolBuffer(sb *strings.Builder, precision time.Duration) {
+	escapeKey(sb, m.Name())
+	sb.WriteRune(',')
+	for i, t := range m.tags {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		escapeKey(sb, t.Key)
+		sb.WriteString("=")
+		escapeKey(sb, t.Value)
+	}
+	sb.WriteString(" ")
+	for i, f := range m.fields {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		escapeKey(sb, f.Key)
+		sb.WriteString("=")
+		switch f.Value.(type) {
+		case string:
+			sb.WriteString(`"`)
+			escapeValue(sb, f.Value.(string))
+			sb.WriteString(`"`)
+		default:
+			sb.WriteString(fmt.Sprintf("%v", f.Value))
+		}
+		switch f.Value.(type) {
+		case int64:
+			sb.WriteString("i")
+		case uint64:
+			sb.WriteString("u")
+		}
+	}
+	if !m.timestamp.IsZero() {
+		sb.WriteString(" ")
+		switch precision {
+		case time.Microsecond:
+			sb.WriteString(strconv.FormatInt(m.Time().UnixNano()/1000, 10))
+		case time.Millisecond:
+			sb.WriteString(strconv.FormatInt(m.Time().UnixNano()/1000000, 10))
+		case time.Second:
+			sb.WriteString(strconv.FormatInt(m.Time().Unix(), 10))
+		default:
+			sb.WriteString(strconv.FormatInt(m.Time().UnixNano(), 10))
+		}
+	}
+	sb.WriteString("\n")
+}
+
+// ToLineProtocol creates InfluxDB line protocol string from the Point, converting associated timestamp according to precision
+func (m *Point) ToLineProtocol(precision time.Duration) string {
+	var sb strings.Builder
+	sb.Grow(1024)
+	m.ToLineProtocolBuffer(&sb, precision)
+	return sb.String()
+}
+
+func escapeKey(sb *strings.Builder, key string) {
+	for _, r := range key {
+		switch r {
+		case ' ', ',', '=':
+			sb.WriteString(`\`)
+		}
+		sb.WriteRune(r)
+	}
+}
+
+func escapeValue(sb *strings.Builder, value string) {
+	for _, r := range value {
+		switch r {
+		case '\\', '"':
+			sb.WriteString(`\`)
+		}
+		sb.WriteRune(r)
 	}
 }
 

@@ -191,7 +191,7 @@ func (w *WriterV2P) Write(id int, measurementName string, iteration int) {
 		map[string]string{"id": fmt.Sprintf("%v", id)},
 		map[string]interface{}{"temperature": fmt.Sprintf("%v", time.Now().UnixNano())},
 		time.Unix(0, int64(iteration)))
-	w.writeApi.Write(point)
+	w.writeApi.WritePoint(point)
 }
 
 func (w *WriterV2P) Count(measurementName string) (int, error) {

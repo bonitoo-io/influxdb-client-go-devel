@@ -32,18 +32,24 @@ const (
 	timeDatatypeRFCNano  = "dateTime:RFC3339Nano"
 )
 
+// QueryApi provides methods for performing synchronously flux query against InfluxDB server
 type QueryApi interface {
+	// QueryString executes flux query on the InfluxDB server and returns complete query result as a string without table annotations (data types, group, defaults)
 	QueryString(ctx context.Context, query string) (string, error)
+	// QueryString executes flux query on the InfluxDB server and returns QueryRawResult which parses streamed response and returns raw csv lines
 	QueryRaw(ctx context.Context, query string) (*QueryRawResult, error)
+	// Query executes flux query on the InfluxDB server and returns  QueryCSVResult which parses streamed response into structures representing flux table parts
 	Query(ctx context.Context, query string) (*QueryCSVResult, error)
 }
 
-type QueryApiImpl struct {
+// queryApiImpl implements QueryApi interface
+type queryApiImpl struct {
 	org    string
 	client InfluxDBClient
 	url    string
 }
 
+// queryReq wraps flux query request parameters
 type queryReq struct {
 	Query   string      `json:"query"`
 	Type    string      `json:"type"`
@@ -51,6 +57,7 @@ type queryReq struct {
 	Extern  interface{} `json:"extern,omitempty"`
 }
 
+// dialect wraps flux query dialect properties
 type dialect struct {
 	Annotations    []string `json:"annotations,omitempty"`
 	CommentPrefix  string   `json:"commentPrefix,omitempty"`
@@ -59,7 +66,7 @@ type dialect struct {
 	Header         bool     `json:"header"`
 }
 
-func (q *QueryApiImpl) QueryString(ctx context.Context, query string) (string, error) {
+func (q *queryApiImpl) QueryString(ctx context.Context, query string) (string, error) {
 	queryUrl, err := q.queryUrl()
 	if err != nil {
 		return "", err
@@ -82,7 +89,7 @@ func (q *QueryApiImpl) QueryString(ctx context.Context, query string) (string, e
 	return body, nil
 }
 
-func (q *QueryApiImpl) QueryRaw(ctx context.Context, query string) (*QueryRawResult, error) {
+func (q *queryApiImpl) QueryRaw(ctx context.Context, query string) (*QueryRawResult, error) {
 	var queryResult *QueryRawResult
 	queryUrl, err := q.queryUrl()
 	if err != nil {
@@ -111,7 +118,7 @@ func (q *QueryApiImpl) QueryRaw(ctx context.Context, query string) (*QueryRawRes
 	return queryResult, nil
 }
 
-func (q *QueryApiImpl) Query(ctx context.Context, query string) (*QueryCSVResult, error) {
+func (q *queryApiImpl) Query(ctx context.Context, query string) (*QueryCSVResult, error) {
 	var queryResult *QueryCSVResult
 	queryUrl, err := q.queryUrl()
 	if err != nil {
@@ -148,7 +155,7 @@ func (q *QueryApiImpl) Query(ctx context.Context, query string) (*QueryCSVResult
 	return queryResult, nil
 }
 
-func (q *QueryApiImpl) queryUrl() (string, error) {
+func (q *queryApiImpl) queryUrl() (string, error) {
 	if q.url == "" {
 		u, err := url.Parse(q.client.ServerUrl())
 		if err != nil {
@@ -164,47 +171,63 @@ func (q *QueryApiImpl) queryUrl() (string, error) {
 	return q.url, nil
 }
 
+// QueryRawResult parses streamed flux query response into lines with csv rows
+// Walking though the result is done by repeatedly calling Next() until returns false.
+// Lines are than returned by Row()
+// Preliminary end can be caused by an error, so when Next() return false, check Err() for an error
 type QueryRawResult struct {
 	io.Closer
 	scanner *bufio.Scanner
 	row     string
 }
 
+// Next walks through the flux query result line by line
+// Returns false in case of end or an error, otherwise true
 func (q *QueryRawResult) Next() bool {
 	return q.scanner.Scan()
 }
 
+// Row returns the actual flux query result csv line
+// First three rows are the flux query table annotations
 func (q *QueryRawResult) Row() string {
 	return q.scanner.Text()
 }
 
+// Err returns an error raised during flux query response parsing
 func (q *QueryRawResult) Err() error {
 	return q.scanner.Err()
 }
 
+// QueryRawResult parses streamed flux query response into structures representing flux table parts
+// Walking though the result is done by repeatedly calling Next() until returns false.
+// Actual flux table info (columns with names, data types, etc) is returned by TableMetadata() method.
+// Data are acquired by Record() method.
+// Preliminary end can be caused by an error, so when Next() return false, check Err() for an error
 type QueryCSVResult struct {
 	io.Closer
-	csvReader  *csv.Reader
-	tableIndex int
-	table      *FluxTableMetadata
-	record     *FluxRecord
-	err        error
+	csvReader     *csv.Reader
+	tablePosition int
+	table         *FluxTableMetadata
+	record        *FluxRecord
+	err           error
 }
 
-// TableIndex returns actual flux tableIndex index
-func (q *QueryCSVResult) TableIndex() int {
-	if q.tableIndex > 0 {
-		return q.tableIndex - 1
+// TablePosition returns actual flux table position in the result.
+// Each new table is introduced by annotations
+func (q *QueryCSVResult) TablePosition() int {
+	if q.tablePosition > 0 {
+		return q.tablePosition - 1
 	}
-	return q.tableIndex
+	return q.tablePosition
 }
 
-// Table returns actual flux tableIndex metadata
-func (q *QueryCSVResult) Table() *FluxTableMetadata {
+// TableMetadata returns actual flux table metadata
+func (q *QueryCSVResult) TableMetadata() *FluxTableMetadata {
 	return q.table
 }
 
-// Record returns last parsed tableIndex data row
+// Record returns last parsed flux table data row
+// Use Record methods to access value and row properties
 func (q *QueryCSVResult) Record() *FluxRecord {
 	return q.record
 }
@@ -218,8 +241,9 @@ const (
 )
 
 // Next advances to next row in query result.
-// During the first time run it creates also tableIndex metadata
-// Actual parsed row is available through #Record() function
+// During the first time run it creates also table metadata
+// Actual parsed row is available through Record() function
+// Returns false in case of end or an error, otherwise true
 func (q *QueryCSVResult) Next() bool {
 	var row []string
 	// set closing query in case of preliminary return
@@ -294,10 +318,10 @@ readRow:
 				}
 			}
 		}
-		q.record = newFluxRecord(q.table.Index(), values)
+		q.record = newFluxRecord(q.table.Position(), values)
 	case "#datatype":
-		q.table = newFluxTableMetadata(q.tableIndex)
-		q.tableIndex++
+		q.table = newFluxTableMetadata(q.tablePosition)
+		q.tablePosition++
 		for i, d := range row[1:] {
 			q.table.AddColumn(newFluxColumn(i, d))
 		}
@@ -324,10 +348,12 @@ readRow:
 	return true
 }
 
+// Err returns an error raised during flux query response parsing
 func (q *QueryCSVResult) Err() error {
 	return q.err
 }
 
+// stringTernary returns a if not empty, otherwise b
 func stringTernary(a, b string) string {
 	if a == "" {
 		return b
@@ -335,6 +361,7 @@ func stringTernary(a, b string) string {
 	return a
 }
 
+// toValues converts s into type by t
 func toValue(s, t string) (interface{}, error) {
 	switch t {
 	case stringDatatype:

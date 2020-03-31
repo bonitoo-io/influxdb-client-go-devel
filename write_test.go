@@ -152,7 +152,7 @@ func TestWriteApiImpl_Write(t *testing.T) {
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(10)
 	for _, p := range points {
-		writeApi.Write(p)
+		writeApi.WritePoint(p)
 	}
 	writeApi.close()
 	require.Len(t, client.lines, 10)
@@ -174,7 +174,7 @@ func TestGzipWithFlushing(t *testing.T) {
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(5)
 	for _, p := range points {
-		writeApi.Write(p)
+		writeApi.WritePoint(p)
 	}
 	time.Sleep(time.Millisecond * 10)
 	require.Len(t, client.lines, 5)
@@ -183,7 +183,7 @@ func TestGzipWithFlushing(t *testing.T) {
 	client.Close()
 	client.options.UseGZip = false
 	for _, p := range points {
-		writeApi.Write(p)
+		writeApi.WritePoint(p)
 	}
 	time.Sleep(time.Millisecond * 10)
 	require.Len(t, client.lines, 5)
@@ -201,7 +201,7 @@ func TestFlushInterval(t *testing.T) {
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(5)
 	for _, p := range points {
-		writeApi.Write(p)
+		writeApi.WritePoint(p)
 	}
 	require.Len(t, client.lines, 0)
 	time.Sleep(time.Millisecond * 600)
@@ -212,7 +212,7 @@ func TestFlushInterval(t *testing.T) {
 	client.options.FlushInterval = 2000
 	writeApi = newWriteApiImpl("my-org", "my-bucket", client)
 	for _, p := range points {
-		writeApi.Write(p)
+		writeApi.WritePoint(p)
 	}
 	require.Len(t, client.lines, 0)
 	time.Sleep(time.Millisecond * 2100)
@@ -232,7 +232,7 @@ func TestRetry(t *testing.T) {
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(15)
 	for i := 0; i < 5; i++ {
-		writeApi.Write(points[i])
+		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
 	require.Len(t, client.lines, 5)
@@ -242,19 +242,19 @@ func TestRetry(t *testing.T) {
 		RetryAfter: 5,
 	}
 	for i := 0; i < 5; i++ {
-		writeApi.Write(points[i])
+		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
 	require.Len(t, client.lines, 0)
 	client.Close()
 	for i := 5; i < 10; i++ {
-		writeApi.Write(points[i])
+		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
 	require.Len(t, client.lines, 0)
 	time.Sleep(5*time.Second + 50*time.Millisecond)
 	for i := 10; i < 15; i++ {
-		writeApi.Write(points[i])
+		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
 	require.Len(t, client.lines, 15)

@@ -1,16 +1,13 @@
 package client
 
 import (
-	"fmt"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	lp "github.com/influxdata/line-protocol"
 )
 
-// Point is represents InfluxDB point, holding tags and fields
+// Point is represents InfluxDB time series point, holding tags and fields
 type Point struct {
 	measurement string
 	tags        []*lp.Tag
@@ -18,12 +15,12 @@ type Point struct {
 	timestamp   time.Time
 }
 
-// TagList returns a slice containing tags of a Metric.
+// TagList returns a slice containing tags of a Point.
 func (m *Point) TagList() []*lp.Tag {
 	return m.tags
 }
 
-// FieldList returns a slice containing the fields of a Metric.
+// FieldList returns a slice containing the fields of a Point.
 func (m *Point) FieldList() []*lp.Field {
 	return m.fields
 }
@@ -33,23 +30,23 @@ func (m *Point) SetTime(timestamp time.Time) {
 	m.timestamp = timestamp
 }
 
-// Time is the timestamp of a metric.
+// Time is the timestamp of a Point.
 func (m *Point) Time() time.Time {
 	return m.timestamp
 }
 
-// SortTags orders the tags of a metric alphanumerically by key.
+// SortTags orders the tags of a point alphanumerically by key.
 // This is just here as a helper, to make it easy to keep tags sorted if you are creating a Point manually.
 func (m *Point) SortTags() {
 	sort.Slice(m.tags, func(i, j int) bool { return m.tags[i].Key < m.tags[j].Key })
 }
 
-// SortFields orders the fields of a metric alphanumerically by key.
+// SortFields orders the fields of a point alphanumerically by key.
 func (m *Point) SortFields() {
 	sort.Slice(m.fields, func(i, j int) bool { return m.fields[i].Key < m.fields[j].Key })
 }
 
-// AddTag adds an lp.Tag to a metric.
+// AddTag adds a tag to a point.
 func (m *Point) AddTag(k, v string) {
 	for i, tag := range m.tags {
 		if k == tag.Key {
@@ -60,7 +57,7 @@ func (m *Point) AddTag(k, v string) {
 	m.tags = append(m.tags, &lp.Tag{Key: k, Value: v})
 }
 
-// AddField adds an lp.Field to a metric.
+// AddField adds a field to a point.
 func (m *Point) AddField(k string, v interface{}) {
 	for i, field := range m.fields {
 		if k == field.Key {
@@ -71,70 +68,53 @@ func (m *Point) AddField(k string, v interface{}) {
 	m.fields = append(m.fields, &lp.Field{Key: k, Value: convertField(v)})
 }
 
-// Name returns the name of the metric.
+// Name returns the name of measurement of a point.
 func (m *Point) Name() string {
 	return m.measurement
 }
 
-// ToLineProtocol creates InfluxDB line protocol string from the Point, converting associated timestamp according to precision
-// and write result to the string builder
-func (m *Point) ToLineProtocolBuffer(sb *strings.Builder, precision time.Duration) {
-	escapeKey(sb, m.Name())
-	sb.WriteRune(',')
-	for i, t := range m.tags {
-		if i > 0 {
-			sb.WriteString(",")
-		}
-		escapeKey(sb, t.Key)
-		sb.WriteString("=")
-		escapeKey(sb, t.Value)
-	}
-	sb.WriteString(" ")
-	for i, f := range m.fields {
-		if i > 0 {
-			sb.WriteString(",")
-		}
-		escapeKey(sb, f.Key)
-		sb.WriteString("=")
-		switch f.Value.(type) {
-		case string:
-			sb.WriteString(`"`)
-			escapeValue(sb, f.Value.(string))
-			sb.WriteString(`"`)
-		default:
-			sb.WriteString(fmt.Sprintf("%v", f.Value))
-		}
-		switch f.Value.(type) {
-		case int64:
-			sb.WriteString("i")
-		case uint64:
-			sb.WriteString("u")
-		}
-	}
-	if !m.timestamp.IsZero() {
-		sb.WriteString(" ")
-		switch precision {
-		case time.Microsecond:
-			sb.WriteString(strconv.FormatInt(m.Time().UnixNano()/1000, 10))
-		case time.Millisecond:
-			sb.WriteString(strconv.FormatInt(m.Time().UnixNano()/1000000, 10))
-		case time.Second:
-			sb.WriteString(strconv.FormatInt(m.Time().Unix(), 10))
-		default:
-			sb.WriteString(strconv.FormatInt(m.Time().UnixNano(), 10))
-		}
-	}
-	sb.WriteString("\n")
+// NewPointWithMeasurement creates a empty Point
+// Use AddTag and AddField to fill point with data
+func NewPointWithMeasurement(measurement string) *Point {
+	return &Point{measurement: measurement}
 }
 
-// ToLineProtocol creates InfluxDB line protocol string from the Point, converting associated timestamp according to precision
-func (m *Point) ToLineProtocol(precision time.Duration) string {
-	var sb strings.Builder
-	sb.Grow(1024)
-	m.ToLineProtocolBuffer(&sb, precision)
-	return sb.String()
+// NewPoint creates a Point from measurement name, tags, fields and a timestamp.
+func NewPoint(
+	measurement string,
+	tags map[string]string,
+	fields map[string]interface{},
+	ts time.Time,
+) *Point {
+	m := &Point{
+		measurement: measurement,
+		tags:        nil,
+		fields:      nil,
+		timestamp:   ts,
+	}
+
+	if len(tags) > 0 {
+		m.tags = make([]*lp.Tag, 0, len(tags))
+		for k, v := range tags {
+			m.tags = append(m.tags,
+				&lp.Tag{Key: k, Value: v})
+		}
+	}
+
+	m.fields = make([]*lp.Field, 0, len(fields))
+	for k, v := range fields {
+		v := convertField(v)
+		if v == nil {
+			continue
+		}
+		m.fields = append(m.fields, &lp.Field{Key: k, Value: v})
+	}
+	m.SortFields()
+	m.SortTags()
+	return m
 }
 
+// convertField converts any primitive type to types supported by line protocol
 func convertField(v interface{}) interface{} {
 	switch v := v.(type) {
 	case bool, int64, string, float64:
@@ -168,64 +148,4 @@ func convertField(v interface{}) interface{} {
 	default:
 		panic("unsupported type")
 	}
-}
-
-func escapeKey(sb *strings.Builder, key string) {
-	for _, r := range key {
-		switch r {
-		case ' ', ',', '=':
-			sb.WriteString(`\`)
-		}
-		sb.WriteRune(r)
-	}
-}
-
-func escapeValue(sb *strings.Builder, value string) {
-	for _, r := range value {
-		switch r {
-		case '\\', '"':
-			sb.WriteString(`\`)
-		}
-		sb.WriteRune(r)
-	}
-}
-
-// NewPointWithMeasurement creates a empty Point with just a measurement name
-func NewPointWithMeasurement(measurement string) *Point {
-	return &Point{measurement: measurement}
-}
-
-// NewPoint creates a *Point from measurement name, tags, fields and a timestamp.
-func NewPoint(
-	measurement string,
-	tags map[string]string,
-	fields map[string]interface{},
-	ts time.Time,
-) *Point {
-	m := &Point{
-		measurement: measurement,
-		tags:        nil,
-		fields:      nil,
-		timestamp:   ts,
-	}
-
-	if len(tags) > 0 {
-		m.tags = make([]*lp.Tag, 0, len(tags))
-		for k, v := range tags {
-			m.tags = append(m.tags,
-				&lp.Tag{Key: k, Value: v})
-		}
-	}
-
-	m.fields = make([]*lp.Field, 0, len(fields))
-	for k, v := range fields {
-		v := convertField(v)
-		if v == nil {
-			continue
-		}
-		m.fields = append(m.fields, &lp.Field{Key: k, Value: v})
-	}
-	m.SortFields()
-	m.SortTags()
-	return m
 }
