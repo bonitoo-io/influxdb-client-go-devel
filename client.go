@@ -1,3 +1,7 @@
+// Copyright 2020 InfluxData, Inc. All rights reserved.
+// Use of this source code is governed by MIT
+// license that can be found in the LICENSE file.
+
 // Package client provides API for using InfluxDB client in Go
 // It's intended to use with InfluxDB 2 server
 package client
