@@ -27,13 +27,21 @@ Add import to your source or directly edit go.mod
 
 ## Usage
 ```go
-    import github.com/bonitoo-io/influxdb-client-go
-```
+package main
 
-```go
-    client := NewInfluxDBClient("http://localhost:9999", token())
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"time"
+
+	"github.com/bonitoo-io/influxdb-client-go"
+)
+
+func main() {
+    client := influxdb2.NewClient("http://localhost:9999", "my-token")
     writeApi := client.WriteApiBlocking("my-org", "my-bucket")
-    p := NewPoint("stat",
+    p := influxdb2.NewPoint("stat",
         map[string]string{"unit": "temperature"},
         map[string]interface{}{"avg": strconv.FormatFloat(f, 'f', 2, 64), "max": 45},
     	time.Now())
@@ -52,6 +60,7 @@ Add import to your source or directly edit go.mod
             fmt.Printf("Query error: %s\n", result.Err().Error())
         }
     }
+}
 ```
 
 ## Contributing
