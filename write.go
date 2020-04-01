@@ -41,6 +41,7 @@ type writeApiImpl struct {
 	doneCh       chan int
 	errCh        chan error
 	bufferInfoCh chan writeBuffInfoReq
+	writeInfoCh  chan writeBuffInfoReq
 }
 
 type writeBuffInfoReq struct {
@@ -50,7 +51,7 @@ type writeBuffInfoReq struct {
 func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApiImpl {
 	w := &writeApiImpl{
 		service:      newWriteService(org, bucket, client),
-		writeBuffer:  make([]string, 0, client.Options().BatchSize+1),
+		writeBuffer:  make([]string, 0, client.Options().BatchSize()+1),
 		writeCh:      make(chan *batch),
 		doneCh:       make(chan int),
 		bufferCh:     make(chan string),
@@ -58,6 +59,7 @@ func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApi
 		writeStop:    make(chan int),
 		bufferFlush:  make(chan int),
 		bufferInfoCh: make(chan writeBuffInfoReq),
+		writeInfoCh:  make(chan writeBuffInfoReq),
 	}
 	go w.bufferProc()
 	go w.writeProc()
@@ -78,29 +80,36 @@ func (w *writeApiImpl) Flush() {
 }
 
 func (w *writeApiImpl) waitForFlushing() {
-	w.bufferInfoCh <- writeBuffInfoReq{}
-	writeBuffInfo := <-w.bufferInfoCh
-	for writeBuffInfo.writeBuffLen > 0 {
+	for {
+		w.bufferInfoCh <- writeBuffInfoReq{}
+		writeBuffInfo := <-w.bufferInfoCh
+		if writeBuffInfo.writeBuffLen == 0 {
+			break
+		}
 		logger.Info("Waiting buffer is flushed")
 		time.Sleep(time.Millisecond)
 	}
-	for len(w.writeCh) > 0 {
-		logger.Info("Waiting buffer is written")
+	for {
+		w.writeInfoCh <- writeBuffInfoReq{}
+		writeBuffInfo := <-w.writeInfoCh
+		if writeBuffInfo.writeBuffLen == 0 {
+			break
+		}
+		logger.Info("Waiting buffer is flushed")
 		time.Sleep(time.Millisecond)
 	}
-	//HACK: wait a bit till write finishes
-	time.Sleep(time.Millisecond)
+	//time.Sleep(time.Millisecond)
 }
 
 func (w *writeApiImpl) bufferProc() {
 	logger.Info("Buffer proc started")
-	ticker := time.NewTicker(time.Duration(w.service.client.Options().FlushInterval) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(w.service.client.Options().FlushInterval()) * time.Millisecond)
 x:
 	for {
 		select {
 		case line := <-w.bufferCh:
 			w.writeBuffer = append(w.writeBuffer, line)
-			if len(w.writeBuffer) == int(w.service.client.Options().BatchSize) {
+			if len(w.writeBuffer) == int(w.service.client.Options().BatchSize()) {
 				w.flushBuffer()
 			}
 		case <-ticker.C:
@@ -146,6 +155,9 @@ x:
 		case <-w.writeStop:
 			logger.Info("Write proc: received stop")
 			break x
+		case buffInfo := <-w.writeInfoCh:
+			buffInfo.writeBuffLen = len(w.writeCh)
+			w.writeInfoCh <- buffInfo
 		}
 	}
 	logger.Info("Write proc finished")
@@ -163,6 +175,8 @@ func (w *writeApiImpl) Close() {
 	w.writeStop <- 1
 	<-w.doneCh
 	close(w.writeCh)
+	close(w.writeInfoCh)
+	close(w.bufferInfoCh)
 	//wait for write  and buffer proc
 }
 

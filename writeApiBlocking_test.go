@@ -18,14 +18,14 @@ func TestWritePoint(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.BatchSize = 5
+	client.options.SetBatchSize(5)
 	writeApi := newWriteApiBlockingImpl("my-org", "my-bucket", client)
 	points := genPoints(10)
 	err := writeApi.WritePoint(context.Background(), points...)
 	require.Nil(t, err)
 	require.Len(t, client.lines, 10)
 	for i, p := range points {
-		line := p.ToLineProtocol(client.options.Precision)
+		line := p.ToLineProtocol(client.options.Precision())
 		//cut off last \n char
 		line = line[:len(line)-1]
 		assert.Equal(t, client.lines[i], line)
@@ -37,7 +37,7 @@ func TestWriteRecord(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.BatchSize = 5
+	client.options.SetBatchSize(5)
 	writeApi := newWriteApiBlockingImpl("my-org", "my-bucket", client)
 	lines := genRecords(10)
 	err := writeApi.WriteRecord(context.Background(), lines...)
@@ -63,7 +63,7 @@ func TestWriteContextCancel(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.BatchSize = 5
+	client.options.SetBatchSize(5)
 	writeApi := newWriteApiBlockingImpl("my-org", "my-bucket", client)
 	lines := genRecords(10)
 	ctx, cancel := context.WithCancel(context.Background())

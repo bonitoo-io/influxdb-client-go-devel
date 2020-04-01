@@ -31,11 +31,11 @@ type testClient struct {
 	lock           sync.Mutex
 }
 
-func (t *testClient) WriteApiBlocking(org, bucket string) WriteApiBlocking {
+func (t *testClient) WriteApiBlocking(string, string) WriteApiBlocking {
 	return nil
 }
 
-func (t *testClient) WriteApi(org, bucket string) WriteApi {
+func (t *testClient) WriteApi(string, string) WriteApi {
 	return nil
 }
 
@@ -50,7 +50,7 @@ func (t *testClient) Close() {
 	t.lock.Unlock()
 }
 
-func (t *testClient) QueryApi(org string) QueryApi {
+func (t *testClient) QueryApi(string) QueryApi {
 	return nil
 }
 
@@ -60,7 +60,7 @@ func (t *testClient) ReplyError() *Error {
 	return t.replyError
 }
 
-func (t *testClient) postRequest(ctx context.Context, url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error {
+func (t *testClient) postRequest(_ context.Context, url string, body io.Reader, requestCallback RequestCallback, _ ResponseCallback) *Error {
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		return NewError(err)
@@ -117,10 +117,10 @@ func (t *testClient) ServerUrl() string {
 	return "http://locahost:8900"
 }
 
-func (t *testClient) Setup(ctx context.Context, username, password, org, bucket string, retentionPeriodHours int) (*domain.OnboardingResponse, error) {
+func (t *testClient) Setup(context.Context, string, string, string, string, int) (*domain.OnboardingResponse, error) {
 	return nil, nil
 }
-func (t *testClient) Ready(ctx context.Context) (bool, error) {
+func (t *testClient) Ready(context.Context) (bool, error) {
 	return true, nil
 }
 
@@ -172,7 +172,7 @@ func TestWriteApiImpl_Write(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.BatchSize = 5
+	client.options.SetBatchSize(5)
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(10)
 	for _, p := range points {
@@ -181,7 +181,7 @@ func TestWriteApiImpl_Write(t *testing.T) {
 	writeApi.Close()
 	require.Len(t, client.Lines(), 10)
 	for i, p := range points {
-		line := p.ToLineProtocol(client.options.Precision)
+		line := p.ToLineProtocol(client.options.Precision())
 		//cut off last \n char
 		line = line[:len(line)-1]
 		assert.Equal(t, client.Lines()[i], line)
@@ -193,8 +193,7 @@ func TestGzipWithFlushing(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.BatchSize = 5
-	client.options.UseGZip = true
+	client.options.SetBatchSize(5).SetUseGZip(true)
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(5)
 	for _, p := range points {
@@ -205,7 +204,7 @@ func TestGzipWithFlushing(t *testing.T) {
 	assert.True(t, client.wasGzip)
 
 	client.Close()
-	client.options.UseGZip = false
+	client.options.SetUseGZip(false)
 	for _, p := range points {
 		writeApi.WritePoint(p)
 	}
@@ -220,8 +219,7 @@ func TestFlushInterval(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.BatchSize = 10
-	client.options.FlushInterval = 500
+	client.options.SetBatchSize(10).SetFlushInterval(500)
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(5)
 	for _, p := range points {
@@ -233,7 +231,7 @@ func TestFlushInterval(t *testing.T) {
 	writeApi.Close()
 
 	client.Close()
-	client.options.FlushInterval = 2000
+	client.options.SetFlushInterval(2000)
 	writeApi = newWriteApiImpl("my-org", "my-bucket", client)
 	for _, p := range points {
 		writeApi.WritePoint(p)
@@ -250,9 +248,9 @@ func TestRetry(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.DebugLevel = 3
-	client.options.BatchSize = 5
-	client.options.RetryInterval = 10000
+	client.options.SetLogLevel(3).
+		SetBatchSize(5).
+		SetRetryInterval(10000)
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	points := genPoints(15)
 	for i := 0; i < 5; i++ {
@@ -292,8 +290,7 @@ func TestWriteError(t *testing.T) {
 		options: DefaultOptions(),
 		t:       t,
 	}
-	client.options.DebugLevel = 3
-	client.options.BatchSize = 5
+	client.options.SetLogLevel(3).SetBatchSize(5)
 	client.replyError = &Error{
 		StatusCode: 400,
 		Code:       "write",

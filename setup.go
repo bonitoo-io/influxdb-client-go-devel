@@ -31,7 +31,7 @@ func (c *client) Setup(ctx context.Context, username, password, org, bucket stri
 	if err != nil {
 		return nil, err
 	}
-	if c.options.DebugLevel > 2 {
+	if c.options.LogLevel() > 2 {
 		log.Printf("D! Request:\n%s\n", string(inputData))
 	}
 	error := c.postRequest(ctx, c.serverUrl+"/api/v2/setup", bytes.NewReader(inputData), func(req *http.Request) {

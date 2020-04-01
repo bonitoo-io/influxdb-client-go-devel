@@ -15,7 +15,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	url2 "net/url"
+	"net/url"
 	"path"
 	"runtime"
 	"strconv"
@@ -56,9 +56,9 @@ type InfluxDBClient interface {
 type client struct {
 	serverUrl     string
 	authorization string
-	options       Options
+	options       *Options
 	writeApis     []WriteApi
-	httpDoer      domain.HttpRequestDoer
+	httpClient    *http.Client
 	lock          sync.Mutex
 }
 
@@ -70,18 +70,18 @@ type ResponseCallback func(req *http.Response) error
 // Authentication token can be empty in case of connecting to newly installed InfluxDB server, which has not been set up yet.
 // In such case Setup will set authentication token
 func NewClient(serverUrl string, authToken string) InfluxDBClient {
-	return NewClientWithOptions(serverUrl, authToken, *DefaultOptions())
+	return NewClientWithOptions(serverUrl, authToken, DefaultOptions())
 }
 
 // NewClientWithOptions creates InfluxDBClient for connecting to given serverUrl with provided authentication token
 // and configured with custom Options
 // Authentication token can be empty in case of connecting to newly installed InfluxDB server, which has not been set up yet.
 // In such case Setup will set authentication token
-func NewClientWithOptions(serverUrl string, authToken string, options Options) InfluxDBClient {
+func NewClientWithOptions(serverUrl string, authToken string, options *Options) InfluxDBClient {
 	client := &client{
 		serverUrl:     serverUrl,
 		authorization: "Token " + authToken,
-		httpDoer: &http.Client{
+		httpClient: &http.Client{
 			Timeout: time.Second * 60,
 			Transport: &http.Transport{
 				DialContext: (&net.Dialer{
@@ -89,6 +89,7 @@ func NewClientWithOptions(serverUrl string, authToken string, options Options) I
 				}).DialContext,
 				TLSHandshakeTimeout: 30 * time.Second,
 				WriteBufferSize:     500 * 1024,
+				TLSClientConfig:     options.TlsConfig(),
 			},
 		},
 		options:   options,
@@ -97,7 +98,7 @@ func NewClientWithOptions(serverUrl string, authToken string, options Options) I
 	return client
 }
 func (c *client) Options() *Options {
-	return &c.options
+	return c.options
 }
 
 func (c *client) ServerUrl() string {
@@ -105,17 +106,17 @@ func (c *client) ServerUrl() string {
 }
 
 func (c *client) Ready(ctx context.Context) (bool, error) {
-	url, err := url2.Parse(c.serverUrl)
+	readyUrl, err := url.Parse(c.serverUrl)
 	if err != nil {
 		return false, err
 	}
-	url.Path = path.Join(url.Path, "ready")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
+	readyUrl.Path = path.Join(readyUrl.Path, "ready")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, readyUrl.String(), nil)
 	if err != nil {
 		return false, err
 	}
 	req.Header.Set("User-Agent", userAgent())
-	resp, err := c.httpDoer.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return false, err
 	}
@@ -157,7 +158,7 @@ func (c *client) postRequest(ctx context.Context, url string, body io.Reader, re
 	if requestCallback != nil {
 		requestCallback(req)
 	}
-	resp, err := c.httpDoer.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return NewError(err)
 	}
@@ -180,42 +181,42 @@ func (c *client) handleHttpError(r *http.Response) *Error {
 		return nil
 	}
 
-	error := NewError(nil)
-	error.StatusCode = r.StatusCode
+	perror := NewError(nil)
+	perror.StatusCode = r.StatusCode
 	if v := r.Header.Get("Retry-After"); v != "" {
 		r, err := strconv.ParseUint(v, 10, 32)
 		if err == nil {
-			error.RetryAfter = uint(r)
+			perror.RetryAfter = uint(r)
 		}
 	}
 	// json encoded error
 	ctype, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if ctype == "application/json" {
-		err := json.NewDecoder(r.Body).Decode(error)
-		error.Err = err
-		return error
+		err := json.NewDecoder(r.Body).Decode(perror)
+		perror.Err = err
+		return perror
 	} else {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			error.Err = err
-			return error
+			perror.Err = err
+			return perror
 		}
 
-		error.Code = r.Status
-		error.Message = string(body)
+		perror.Code = r.Status
+		perror.Message = string(body)
 	}
 
-	if error.Code == "" && error.Message == "" {
+	if perror.Code == "" && perror.Message == "" {
 		switch r.StatusCode {
 		case http.StatusTooManyRequests:
-			error.Code = "too many requests"
-			error.Message = "exceeded rate limit"
+			perror.Code = "too many requests"
+			perror.Message = "exceeded rate limit"
 		case http.StatusServiceUnavailable:
-			error.Code = "unavailable"
-			error.Message = "service temporarily unavailable"
+			perror.Code = "unavailable"
+			perror.Message = "service temporarily unavailable"
 		}
 	}
-	return error
+	return perror
 }
 
 // Keeps once created User-Agent string

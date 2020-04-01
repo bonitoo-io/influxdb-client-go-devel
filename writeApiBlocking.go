@@ -34,7 +34,7 @@ func newWriteApiBlockingImpl(org string, bucket string, client InfluxDBClient) *
 func (w *writeApiBlockingImpl) write(ctx context.Context, line string) error {
 	err := w.service.handleWrite(ctx, &batch{
 		batch:         line,
-		retryInterval: w.service.client.Options().RetryInterval,
+		retryInterval: w.service.client.Options().RetryInterval(),
 	})
 	return err
 }
