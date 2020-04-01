@@ -45,7 +45,7 @@ func TestSetup(t *testing.T) {
 	}
 	client := NewClient("http://localhost:9999", "")
 	client.Options().DebugLevel = 2
-	response, err := client.Setup(context.Background(), "my-user", "my-password", "my-org", "my-bucket")
+	response, err := client.Setup(context.Background(), "my-user", "my-password", "my-org", "my-bucket", 0)
 	if err != nil {
 		t.Error(err)
 	}
@@ -53,7 +53,7 @@ func TestSetup(t *testing.T) {
 	authToken = *response.Auth.Token
 	fmt.Println("Token:" + authToken)
 
-	response, err = client.Setup(context.Background(), "my-user", "my-password", "my-org", "my-bucket")
+	response, err = client.Setup(context.Background(), "my-user", "my-password", "my-org", "my-bucket", 0)
 	require.NotNil(t, err)
 	assert.Equal(t, "conflict: onboarding has already been completed", err.Error())
 }

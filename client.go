@@ -42,9 +42,10 @@ type InfluxDBClient interface {
 	Options() *Options
 	// ServerUrl returns the url of the server url client talks to
 	ServerUrl() string
-	// Setup sends request to initialise new InfluxDB server with user, org and bucket
+	// Setup sends request to initialise new InfluxDB server with user, org and bucket, and data retention period
+	// Retention period of zero will result to infinite retention
 	// and returns details about newly created entities along with the authorization object
-	Setup(ctx context.Context, username, password, org, bucket string) (*domain.OnboardingResponse, error)
+	Setup(ctx context.Context, username, password, org, bucket string, retentionPeriodHours int) (*domain.OnboardingResponse, error)
 	// Ready checks InfluxDB server is running
 	Ready(ctx context.Context) (bool, error)
 	// Internal  method for handling posts

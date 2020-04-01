@@ -14,7 +14,7 @@ import (
 	"net/http"
 )
 
-func (c *client) Setup(ctx context.Context, username, password, org, bucket string) (*domain.OnboardingResponse, error) {
+func (c *client) Setup(ctx context.Context, username, password, org, bucket string, retentionPeriodHours int) (*domain.OnboardingResponse, error) {
 	if username == "" || password == "" {
 		return nil, errors.New("a username and password is required for a setup")
 	}
@@ -22,10 +22,11 @@ func (c *client) Setup(ctx context.Context, username, password, org, bucket stri
 	defer c.lock.Unlock()
 	var setupResult *domain.OnboardingResponse
 	inputData, err := json.Marshal(domain.OnboardingRequest{
-		Username: username,
-		Password: password,
-		Org:      org,
-		Bucket:   bucket,
+		Username:           username,
+		Password:           password,
+		Org:                org,
+		Bucket:             bucket,
+		RetentionPeriodHrs: &retentionPeriodHours,
 	})
 	if err != nil {
 		return nil, err

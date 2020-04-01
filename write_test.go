@@ -117,7 +117,7 @@ func (t *testClient) ServerUrl() string {
 	return "http://locahost:8900"
 }
 
-func (t *testClient) Setup(ctx context.Context, username, password, org, bucket string) (*domain.OnboardingResponse, error) {
+func (t *testClient) Setup(ctx context.Context, username, password, org, bucket string, retentionPeriodHours int) (*domain.OnboardingResponse, error) {
 	return nil, nil
 }
 func (t *testClient) Ready(ctx context.Context) (bool, error) {
