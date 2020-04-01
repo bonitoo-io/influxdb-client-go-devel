@@ -399,7 +399,7 @@ func TestQueryRawResult(t *testing.T) {
 		if r.Method == http.MethodPost {
 			rbody, err := ioutil.ReadAll(r.Body)
 			fmt.Printf("Req: %s\n", string(rbody))
-			body, err := gzip.CompressWithGzip(strings.NewReader(csvTable), 6)
+			body, err := gzip.CompressWithGzip(strings.NewReader(csvTable))
 			if err == nil {
 				var bytes []byte
 				bytes, err = ioutil.ReadAll(body)

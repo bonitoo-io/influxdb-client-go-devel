@@ -32,26 +32,32 @@ type writeApiImpl struct {
 	service     *writeService
 	writeBuffer []string
 
-	url         string
-	writeCh     chan *batch
-	bufferCh    chan string
-	writeStop   chan int
-	bufferStop  chan int
-	bufferFlush chan int
-	doneCh      chan int
-	errCh       chan error
+	url          string
+	writeCh      chan *batch
+	bufferCh     chan string
+	writeStop    chan int
+	bufferStop   chan int
+	bufferFlush  chan int
+	doneCh       chan int
+	errCh        chan error
+	bufferInfoCh chan writeBuffInfoReq
+}
+
+type writeBuffInfoReq struct {
+	writeBuffLen int
 }
 
 func newWriteApiImpl(org string, bucket string, client InfluxDBClient) *writeApiImpl {
 	w := &writeApiImpl{
-		service:     newWriteService(org, bucket, client),
-		writeBuffer: make([]string, 0, client.Options().BatchSize+1),
-		writeCh:     make(chan *batch),
-		doneCh:      make(chan int),
-		bufferCh:    make(chan string),
-		bufferStop:  make(chan int),
-		writeStop:   make(chan int),
-		bufferFlush: make(chan int),
+		service:      newWriteService(org, bucket, client),
+		writeBuffer:  make([]string, 0, client.Options().BatchSize+1),
+		writeCh:      make(chan *batch),
+		doneCh:       make(chan int),
+		bufferCh:     make(chan string),
+		bufferStop:   make(chan int),
+		writeStop:    make(chan int),
+		bufferFlush:  make(chan int),
+		bufferInfoCh: make(chan writeBuffInfoReq),
 	}
 	go w.bufferProc()
 	go w.writeProc()
@@ -72,7 +78,9 @@ func (w *writeApiImpl) Flush() {
 }
 
 func (w *writeApiImpl) waitForFlushing() {
-	for len(w.writeBuffer) > 0 {
+	w.bufferInfoCh <- writeBuffInfoReq{}
+	writeBuffInfo := <-w.bufferInfoCh
+	for writeBuffInfo.writeBuffLen > 0 {
 		logger.Info("Waiting buffer is flushed")
 		time.Sleep(time.Millisecond)
 	}
@@ -103,6 +111,9 @@ x:
 			ticker.Stop()
 			w.flushBuffer()
 			break x
+		case buffInfo := <-w.bufferInfoCh:
+			buffInfo.writeBuffLen = len(w.bufferInfoCh)
+			w.bufferInfoCh <- buffInfo
 		}
 	}
 	logger.Info("Buffer proc finished")
@@ -129,7 +140,7 @@ x:
 		select {
 		case batch := <-w.writeCh:
 			err := w.service.handleWrite(context.Background(), batch)
-			if w.errCh != nil && err != nil {
+			if err != nil && w.errCh != nil {
 				w.errCh <- err
 			}
 		case <-w.writeStop:

@@ -16,6 +16,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -27,6 +28,7 @@ type testClient struct {
 	wasGzip        bool
 	requestHandler func(c *testClient, url string, body io.Reader) error
 	replyError     *Error
+	lock           sync.Mutex
 }
 
 func (t *testClient) WriteApiBlocking(org, bucket string) WriteApiBlocking {
@@ -38,16 +40,24 @@ func (t *testClient) WriteApi(org, bucket string) WriteApi {
 }
 
 func (t *testClient) Close() {
+	t.lock.Lock()
 	if len(t.lines) > 0 {
 		t.lines = t.lines[:0]
 	}
 	t.wasGzip = false
 	t.replyError = nil
 	t.requestHandler = nil
+	t.lock.Unlock()
 }
 
 func (t *testClient) QueryApi(org string) QueryApi {
 	return nil
+}
+
+func (t *testClient) ReplyError() *Error {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	return t.replyError
 }
 
 func (t *testClient) postRequest(ctx context.Context, url string, body io.Reader, requestCallback RequestCallback, responseCallback ResponseCallback) *Error {
@@ -63,8 +73,9 @@ func (t *testClient) postRequest(ctx context.Context, url string, body io.Reader
 		t.wasGzip = true
 	}
 	assert.Equal(t.t, url, fmt.Sprintf("%s/api/v2/write?bucket=my-bucket&org=my-org&precision=ns", t.ServerUrl()))
-	if t.replyError != nil {
-		return t.replyError
+
+	if t.ReplyError() != nil {
+		return t.ReplyError()
 	}
 	if t.requestHandler != nil {
 		err = t.requestHandler(t, url, body)
@@ -86,8 +97,16 @@ func (t *testClient) decodeLines(body io.Reader) error {
 	}
 	lines := strings.Split(string(bytes), "\n")
 	lines = lines[:len(lines)-1]
+	t.lock.Lock()
 	t.lines = append(t.lines, lines...)
+	t.lock.Unlock()
 	return nil
+}
+
+func (t *testClient) Lines() []string {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	return t.lines
 }
 
 func (t *testClient) Options() *Options {
@@ -160,12 +179,12 @@ func TestWriteApiImpl_Write(t *testing.T) {
 		writeApi.WritePoint(p)
 	}
 	writeApi.Close()
-	require.Len(t, client.lines, 10)
+	require.Len(t, client.Lines(), 10)
 	for i, p := range points {
 		line := p.ToLineProtocol(client.options.Precision)
 		//cut off last \n char
 		line = line[:len(line)-1]
-		assert.Equal(t, client.lines[i], line)
+		assert.Equal(t, client.Lines()[i], line)
 	}
 }
 
@@ -182,7 +201,7 @@ func TestGzipWithFlushing(t *testing.T) {
 		writeApi.WritePoint(p)
 	}
 	time.Sleep(time.Millisecond * 10)
-	require.Len(t, client.lines, 5)
+	require.Len(t, client.Lines(), 5)
 	assert.True(t, client.wasGzip)
 
 	client.Close()
@@ -191,7 +210,7 @@ func TestGzipWithFlushing(t *testing.T) {
 		writeApi.WritePoint(p)
 	}
 	time.Sleep(time.Millisecond * 10)
-	require.Len(t, client.lines, 5)
+	require.Len(t, client.Lines(), 5)
 	assert.False(t, client.wasGzip)
 
 	writeApi.Close()
@@ -208,9 +227,9 @@ func TestFlushInterval(t *testing.T) {
 	for _, p := range points {
 		writeApi.WritePoint(p)
 	}
-	require.Len(t, client.lines, 0)
+	require.Len(t, client.Lines(), 0)
 	time.Sleep(time.Millisecond * 600)
-	require.Len(t, client.lines, 5)
+	require.Len(t, client.Lines(), 5)
 	writeApi.Close()
 
 	client.Close()
@@ -219,9 +238,9 @@ func TestFlushInterval(t *testing.T) {
 	for _, p := range points {
 		writeApi.WritePoint(p)
 	}
-	require.Len(t, client.lines, 0)
+	require.Len(t, client.Lines(), 0)
 	time.Sleep(time.Millisecond * 2100)
-	require.Len(t, client.lines, 5)
+	require.Len(t, client.Lines(), 5)
 
 	writeApi.Close()
 }
@@ -240,7 +259,7 @@ func TestRetry(t *testing.T) {
 		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
-	require.Len(t, client.lines, 5)
+	require.Len(t, client.Lines(), 5)
 	client.Close()
 	client.replyError = &Error{
 		StatusCode: 429,
@@ -250,21 +269,21 @@ func TestRetry(t *testing.T) {
 		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
-	require.Len(t, client.lines, 0)
+	require.Len(t, client.Lines(), 0)
 	client.Close()
 	for i := 5; i < 10; i++ {
 		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
-	require.Len(t, client.lines, 0)
+	require.Len(t, client.Lines(), 0)
 	time.Sleep(5*time.Second + 50*time.Millisecond)
 	for i := 10; i < 15; i++ {
 		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
-	require.Len(t, client.lines, 15)
-	assert.True(t, strings.HasPrefix(client.lines[7], "test,hostname=host_7"))
-	assert.True(t, strings.HasPrefix(client.lines[14], "test,hostname=host_14"))
+	require.Len(t, client.Lines(), 15)
+	assert.True(t, strings.HasPrefix(client.Lines()[7], "test,hostname=host_7"))
+	assert.True(t, strings.HasPrefix(client.Lines()[14], "test,hostname=host_14"))
 	writeApi.Close()
 }
 
@@ -283,15 +302,18 @@ func TestWriteError(t *testing.T) {
 	writeApi := newWriteApiImpl("my-org", "my-bucket", client)
 	errCh := writeApi.Errors()
 	var recErr error
-
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
 		recErr = <-errCh
+		wg.Done()
 	}()
 	points := genPoints(15)
 	for i := 0; i < 5; i++ {
 		writeApi.WritePoint(points[i])
 	}
 	writeApi.waitForFlushing()
+	wg.Wait()
 	require.NotNil(t, recErr)
 
 	client.Close()

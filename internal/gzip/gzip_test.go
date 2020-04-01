@@ -14,14 +14,9 @@ import (
 )
 
 func TestGzip(t *testing.T) {
-	buf := &bytes.Buffer{}
-	r, err := gzip.CompressWithGzip(buf, 4)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	text := `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`
-	_, err = buf.WriteString(text)
+	inputBuffer := bytes.NewBuffer([]byte(text))
+	r, err := gzip.CompressWithGzip(inputBuffer)
 	if err != nil {
 		t.Fatal(err)
 	}
