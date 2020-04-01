@@ -82,13 +82,12 @@ func NewClientWithOptions(serverUrl string, authToken string, options *Options) 
 		serverUrl:     serverUrl,
 		authorization: "Token " + authToken,
 		httpClient: &http.Client{
-			Timeout: time.Second * 60,
+			Timeout: time.Second * 20,
 			Transport: &http.Transport{
 				DialContext: (&net.Dialer{
-					Timeout: 30 * time.Second,
+					Timeout: 5 * time.Second,
 				}).DialContext,
-				TLSHandshakeTimeout: 30 * time.Second,
-				WriteBufferSize:     500 * 1024,
+				TLSHandshakeTimeout: 5 * time.Second,
 				TLSClientConfig:     options.TlsConfig(),
 			},
 		},
