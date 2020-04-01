@@ -30,8 +30,9 @@ func (m *Point) FieldList() []*lp.Field {
 }
 
 // SetTime set timestamp for a Point.
-func (m *Point) SetTime(timestamp time.Time) {
+func (m *Point) SetTime(timestamp time.Time) *Point {
 	m.timestamp = timestamp
+	return m
 }
 
 // Time is the timestamp of a Point.
@@ -41,35 +42,39 @@ func (m *Point) Time() time.Time {
 
 // SortTags orders the tags of a point alphanumerically by key.
 // This is just here as a helper, to make it easy to keep tags sorted if you are creating a Point manually.
-func (m *Point) SortTags() {
+func (m *Point) SortTags() *Point {
 	sort.Slice(m.tags, func(i, j int) bool { return m.tags[i].Key < m.tags[j].Key })
+	return m
 }
 
 // SortFields orders the fields of a point alphanumerically by key.
-func (m *Point) SortFields() {
+func (m *Point) SortFields() *Point {
 	sort.Slice(m.fields, func(i, j int) bool { return m.fields[i].Key < m.fields[j].Key })
+	return m
 }
 
 // AddTag adds a tag to a point.
-func (m *Point) AddTag(k, v string) {
+func (m *Point) AddTag(k, v string) *Point {
 	for i, tag := range m.tags {
 		if k == tag.Key {
 			m.tags[i].Value = v
-			return
+			return m
 		}
 	}
 	m.tags = append(m.tags, &lp.Tag{Key: k, Value: v})
+	return m
 }
 
 // AddField adds a field to a point.
-func (m *Point) AddField(k string, v interface{}) {
+func (m *Point) AddField(k string, v interface{}) *Point {
 	for i, field := range m.fields {
 		if k == field.Key {
 			m.fields[i].Value = v
-			return
+			return m
 		}
 	}
 	m.fields = append(m.fields, &lp.Field{Key: k, Value: convertField(v)})
+	return m
 }
 
 // Name returns the name of measurement of a point.
