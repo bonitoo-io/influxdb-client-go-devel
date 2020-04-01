@@ -42,11 +42,11 @@ import (
 
 func main() {
     // create new client with default option for server url authenticate by token
-	client := influxdb2.NewClient("http://localhost:9999", "my-token")
-    // user blocking write client for writes to desired bucket
-	writeApi := client.WriteApiBlocking("my-org", "my-bucket")
-	// create point using full params constructor 
-	p := influxdb2.NewPoint("stat",
+    client := influxdb2.NewClient("http://localhost:9999", "my-token")
+    // use blocking write client for writes to desired bucket
+    writeApi := client.WriteApiBlocking("my-org", "my-bucket")
+    // create point using full params constructor 
+    p := influxdb2.NewPoint("stat",
         map[string]string{"unit": "temperature"},
         map[string]interface{}{"avg": 24.5, "max": 45},
         time.Now())
@@ -58,31 +58,31 @@ func main() {
         AddField("avg", 23.2).
         AddField("max", 45).
         SetTime(time.Now())
-	writeApi.WritePoint(context.Background(), p)
+    // write immediately
+    writeApi.WritePoint(context.Background(), p)
     
-    // Or write directly line protocol
-	line := fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 23.5, 45.0)
-	writeApi.WriteRecord(context.Background(), line)
+    // or write directly line protocol
+    line := fmt.Sprintf("stat,unit=temperature avg=%f,max=%f", 23.5, 45.0)
+    writeApi.WriteRecord(context.Background(), line)
 
     // get query client
-	queryApi := client.QueryApi("my-org")
+    queryApi := client.QueryApi("my-org")
     // get parser flux query result
-	result, err := queryApi.Query(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "stat")`)
-	if err == nil {
-        // Use Next() to iterate over query result lines
-		for result.Next() {
+    result, err := queryApi.Query(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "stat")`)
+    if err == nil {
+    	 // Use Next() to iterate over query result lines
+	 for result.Next() {
             // Observe when there is new grouping key producing new table
-			if result.TableChanged() {
-				fmt.Printf("table: %s\n", result.TableMetadata().String())
-			}
+	    if result.TableChanged() {
+	        fmt.Printf("table: %s\n", result.TableMetadata().String())
+            }
             // read result
-			fmt.Printf("row: %s\n", result.Record().String())
-		}
-		if result.Err() != nil {
-			fmt.Printf("Query error: %s\n", result.Err().Error())
-		}
+	    fmt.Printf("row: %s\n", result.Record().String())
 	}
-	
+	if result.Err() != nil {
+	    fmt.Printf("Query error: %s\n", result.Err().Error())
+	}
+    }
 }
 ```
 ### Options
@@ -130,40 +130,40 @@ import (
 )
 
 func main() {
-	// Create client and set batch size to 20 
-	client := influxdb2.NewClientWithOptions("http://localhost:9999", "my-token",
+    // Create client and set batch size to 20 
+    client := influxdb2.NewClientWithOptions("http://localhost:9999", "my-token",
 		influxdb2.DefaultOptions().SetBatchSize(20))
-	// Get non-blocking write client
-	writeApi := client.WriteApi("my-org","my-bucket")
-	// write some points
-	for i := 0; i <100; i++ {
+    // Get non-blocking write client
+    writeApi := client.WriteApi("my-org","my-bucket")
+    // write some points
+    for i := 0; i <100; i++ {
         // create point
-		p := influxdb2.NewPoint(
-			"system",
-			map[string]string{
-				"id":       fmt.Sprintf("rack_%v", i%10),
-				"vendor":   "AWS",
-				"hostname": fmt.Sprintf("host_%v", i%100),
-			},
-			map[string]interface{}{
-				"temperature": rand.Float64() * 80.0,
-				"disk_free":   rand.Float64() * 1000.0,
-				"disk_total":  (i/10 + 1) * 1000000,
-				"mem_total":   (i/100 + 1) * 10000000,
-				"mem_free":    rand.Uint64(),
-			},
-			time.Now())
+	p := influxdb2.NewPoint(
+	    "system",
+	    map[string]string{
+	    	id":       fmt.Sprintf("rack_%v", i%10),
+		vendor":   "AWS",
+		hostname": fmt.Sprintf("host_%v", i%100),
+	    },
+	    map[string]interface{}{
+		"temperature": rand.Float64() * 80.0,
+		"disk_free":   rand.Float64() * 1000.0,
+		"disk_total":  (i/10 + 1) * 1000000,
+		"mem_total":   (i/100 + 1) * 10000000,
+		"mem_free":    rand.Uint64(),
+	    },
+	    time.Now())
         // write asynchronously
-		writeApi.WritePoint(p)
-	}
-	// Force all unwritten data to be sent
-	writeApi.Flush()
-	// Ensures background processes finishes
-	client.Close()
+	writeApi.WritePoint(p)
+     }
+     // Force all unwritten data to be sent
+     writeApi.Flush()
+     // Ensures background processes finishes
+     client.Close()
 }
 ```
 ### Blocking write client 
-Blocking write client writes given point(s) synchronously. No implicit batching. Batch is created from given set of points
+Blocking write client writes given point(s) synchronously. There is no implicit batching. A batch is created from given set of points
 
 Example:
 ```go
@@ -178,34 +178,34 @@ import (
 )
 
 func main() {
-	// Create client
-	client := influxdb2.NewClient("http://localhost:9999", "my-token")
-	// Get non-blocking write client
-	writeApi := client.WriteApiBlocking("my-org","my-bucket")
-	// write some points
-	for i := 0; i <100; i++ {
-		// create data point
-		p := influxdb2.NewPoint(
-			"system",
-			map[string]string{
-				"id":       fmt.Sprintf("rack_%v", i%10),
-				"vendor":   "AWS",
-				"hostname": fmt.Sprintf("host_%v", i%100),
-			},
-			map[string]interface{}{
-				"temperature": rand.Float64() * 80.0,
-				"disk_free":   rand.Float64() * 1000.0,
-				"disk_total":  (i/10 + 1) * 1000000,
-				"mem_total":   (i/100 + 1) * 10000000,
-				"mem_free":    rand.Uint64(),
-			},
-			time.Now())
-		// write synchronously
-		err := writeApi.WritePoint(context.Background(), p)
-		if err != nil {
-			panic(err)
-		}
+    // Create client
+    client := influxdb2.NewClient("http://localhost:9999", "my-token")
+    // Get non-blocking write client
+    writeApi := client.WriteApiBlocking("my-org","my-bucket")
+    // write some points
+    for i := 0; i <100; i++ {
+	// create data point
+	p := influxdb2.NewPoint(
+		"system",
+		map[string]string{
+			"id":       fmt.Sprintf("rack_%v", i%10),
+			"vendor":   "AWS",
+			"hostname": fmt.Sprintf("host_%v", i%100),
+		},
+		map[string]interface{}{
+			"temperature": rand.Float64() * 80.0,
+			"disk_free":   rand.Float64() * 1000.0,
+			"disk_total":  (i/10 + 1) * 1000000,
+			"mem_total":   (i/100 + 1) * 10000000,
+			"mem_free":    rand.Uint64(),
+		},
+		time.Now())
+	// write synchronously
+	err := writeApi.WritePoint(context.Background(), p)
+	if err != nil {
+	    panic(err)
 	}
+    }
 }
 ```
 
@@ -227,34 +227,34 @@ import (
 )
 
 func main() {
-	// Create client
-	client := influxdb2.NewClient("http://localhost:9999", "my-token")
-	// Get query client
-	queryApi := client.QueryApi("my-org")
-	// get QueryTableResult
-	result, err := queryApi.Query(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "stat")`)
-	if err == nil {
-		// Iterate over query response
-		for result.Next() {
-			// Notice when group key has changed
-			if result.TableChanged() {
-				fmt.Printf("table: %s\n", result.TableMetadata().String())
-			}
-			// Access data
-			fmt.Printf("value: %v\n", result.Record().Value())
+    // Create client
+    client := influxdb2.NewClient("http://localhost:9999", "my-token")
+    // Get query client
+    queryApi := client.QueryApi("my-org")
+    // get QueryTableResult
+    result, err := queryApi.Query(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "stat")`)
+    if err == nil {
+	// Iterate over query response
+	for result.Next() {
+		// Notice when group key has changed
+		if result.TableChanged() {
+			fmt.Printf("table: %s\n", result.TableMetadata().String())
 		}
-		// check for an error
-		if result.Err() != nil {
-			fmt.Printf("query parsing error: %s\n", result.Err().Error())
-		}
-	} else {
-		panic(err)
+		// Access data
+		fmt.Printf("value: %v\n", result.Record().Value())
 	}
+	// check for an error
+	if result.Err() != nil {
+		fmt.Printf("query parsing error: %s\n", result.Err().Error())
+	}
+    } else {
+	panic(err)
+    }
 }
 ```
 
 ### Raw
-[QueryRaw()](https://github.com/bonitoo-io/influxdb-client-go/blob/master/query.go#L44) returns raw, unparsed, query result string and process it on your own. Returned csv format  
+[QueryRaw()](https://github.com/bonitoo-io/influxdb-client-go/blob/master/query.go#L44) returns a raw, unparsed, query result string and process it on your own. Returned csv format  
 can controlled by third parameter, query dialect.   
 
 ```go
@@ -267,19 +267,19 @@ import (
 )
 
 func main() {
-	// Create client
-	client := influxdb2.NewClient("http://localhost:9999", "my-token")
-	// Get query client
-	queryApi := client.QueryApi("my-org")
-	// Query and get complete result as a string
-	// Use default dialect
-	result, err := queryApi.QueryRaw(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "stat")`, influxdb2.DefaultDialect())
-	if err == nil {
-		fmt.Println("QueryResult:")
-		fmt.Println(result)
-	} else {
-		panic(err)
-	}
+    // Create client
+    client := influxdb2.NewClient("http://localhost:9999", "my-token")
+    // Get query client
+    queryApi := client.QueryApi("my-org")
+    // Query and get complete result as a string
+    // Use default dialect
+    result, err := queryApi.QueryRaw(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "stat")`, influxdb2.DefaultDialect())
+    if err == nil {
+    	fmt.Println("QueryResult:")
+	fmt.Println(result)
+    } else {
+	panic(err)
+    }
 }    
 ```
 
