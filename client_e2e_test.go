@@ -6,7 +6,6 @@ package influxdb2
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +60,7 @@ func TestWrite(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewClientWithOptions("http://localhost:9999", token(), DefaultOptions().SetLogLevel(3))
+	client := NewClientWithOptions("http://localhost:9999", authToken, DefaultOptions().SetLogLevel(3))
 	writeApi := client.WriteApi("my-org", "my-bucket")
 	for i, f := 0, 3.3; i < 10; i++ {
 		writeApi.WriteRecord(fmt.Sprintf("test,a=%d,b=local f=%.2f,i=%di", i%2, f, i))
@@ -86,7 +85,7 @@ func TestQueryRaw(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewClient("http://localhost:9999", token())
+	client := NewClient("http://localhost:9999", authToken)
 
 	queryApi := client.QueryApi("my-org")
 	res, err := queryApi.QueryRaw(context.Background(), `from(bucket:"my-bucket")|> range(start: -1h) |> filter(fn: (r) => r._measurement == "test")`, nil)
@@ -102,7 +101,7 @@ func TestQuery(t *testing.T) {
 	if !e2e {
 		t.Skip("e2e not enabled. Launch InfluxDB 2 on localhost and run test with -e2e")
 	}
-	client := NewClient("http://localhost:9999", token())
+	client := NewClient("http://localhost:9999", authToken)
 
 	queryApi := client.QueryApi("my-org")
 	fmt.Println("QueryResult")
@@ -120,30 +119,4 @@ func TestQuery(t *testing.T) {
 			t.Error(result.Err())
 		}
 	}
-}
-
-func TestSecureConnection(t *testing.T) {
-	tlsC := &tls.Config{
-		InsecureSkipVerify: true,
-	}
-	client := NewClientWithOptions("https://eu-central-1-1.aws.cloud2.influxdata.com/", "ty1R9RztfuVbP-B5XJufmAdyKqechWTMGLdsBDuY4BsR5sv2DuGO69vu-Tc7dZNx0iApmcFnt8dtsYYdG69tIQ==", DefaultOptions().SetTlsConfig(tlsC))
-	write := client.WriteApiBlocking("cbd7bce713f63c02", "room_monitoring")
-	p := NewPointWithMeasurement("air").
-		AddTag("sensor", "cpu").
-		AddTag("location", "server").
-		AddField("temp", 3.5).
-		AddField("hum", 58).
-		SetTime(time.Now())
-	err := write.WritePoint(context.Background(), p)
-	if err != nil {
-		t.Error(err)
-	}
-
-}
-
-func token() string {
-	if authToken == "" {
-		authToken = "3a0_wuLowYq3mrd4Ja4aRKdVviwQNSYoWyL1px-rncENmppEYodf4UWswxk_kFGzTG2gOM5t7q3JuZJSP5cQ2Q=="
-	}
-	return authToken
 }
