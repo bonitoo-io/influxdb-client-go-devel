@@ -63,12 +63,11 @@ func main() {
 	fmt.Println()
 
 	var writer Writer
-	influx := clientb.NewClientWithOptions(InfluxDB2Url, *token, clientb.Options{
-		BatchSize:     5000,
-		DebugLevel:    *debugLevel,
-		RetryInterval: 1000,
-		FlushInterval: 1000,
-	})
+	influx := clientb.NewClientWithOptions(InfluxDB2Url, *token, clientb.DefaultOptions().
+		SetBatchSize(5000).
+		SetLogLevel(*debugLevel).
+		SetRetryInterval(1000).
+		SetFlushInterval(1000))
 	if *writerType == "points" {
 		writer = &WriterV2P{influx: influx, writeApi: influx.WriteApi(InfluxDB2Org, InfluxDB2Bucket)}
 	} else if *writerType == "lines" {
