@@ -105,7 +105,7 @@ func (w *writeService) writeBatch(ctx context.Context, batch *batch) error {
 	body = strings.NewReader(batch.batch)
 	logger.Debugf("Writing batch: %s", batch.batch)
 	if w.client.Options().UseGZip {
-		body, err = gzip.CompressWithGzip(body, 6)
+		body, err = gzip.CompressWithGzip(body)
 		if err != nil {
 			return err
 		}
