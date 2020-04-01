@@ -165,19 +165,33 @@ x:
 }
 
 func (w *writeApiImpl) Close() {
-	// Flush outstanding metrics
-	w.Flush()
-	w.bufferStop <- 1
-	//wait for buffer proc
-	<-w.doneCh
-	close(w.bufferStop)
-	close(w.bufferFlush)
-	w.writeStop <- 1
-	<-w.doneCh
-	close(w.writeCh)
-	close(w.writeInfoCh)
-	close(w.bufferInfoCh)
-	//wait for write  and buffer proc
+	if w.writeCh != nil {
+		// Flush outstanding metrics
+		w.Flush()
+		w.bufferStop <- 1
+		//wait for buffer proc
+		<-w.doneCh
+		close(w.bufferStop)
+		close(w.bufferFlush)
+		close(w.bufferCh)
+		w.writeStop <- 1
+		//wait for the write proc
+		<-w.doneCh
+		close(w.writeCh)
+		close(w.writeStop)
+		close(w.writeInfoCh)
+		close(w.bufferInfoCh)
+		w.bufferInfoCh = nil
+		w.writeInfoCh = nil
+		w.writeCh = nil
+		w.writeStop = nil
+		w.bufferFlush = nil
+		w.bufferStop = nil
+		if w.errCh != nil {
+			close(w.errCh)
+			w.errCh = nil
+		}
+	}
 }
 
 func (w *writeApiImpl) WriteRecord(line string) {
